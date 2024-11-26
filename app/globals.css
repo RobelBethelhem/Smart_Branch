@@ -25,3 +25,142 @@ body {
     )
     rgb(var(--background-start-rgb));
 }
+
+/* MUI Overrides */
+.MuiPagination-root .MuiPaginationItem-root.Mui-selected {
+  background-color: #3b82f6;
+  color: white;
+}
+
+.MuiPagination-root .MuiPaginationItem-root.Mui-selected:hover {
+  background-color: #2563eb;
+}
+
+
+/* Leaflet marker styles */
+.custom-marker {
+  width: 30px;
+  height: 30px;
+}
+
+.marker-pin {
+  width: 30px;
+  height: 30px;
+  border-radius: 50% 50% 50% 0;
+  background: #4CAF50;
+  position: absolute;
+  transform: rotate(-45deg);
+  left: 50%;
+  top: 50%;
+  margin: -15px 0 0 -15px;
+  animation: pulse 1.5s infinite;
+}
+
+.marker-pin::after {
+  content: '';
+  width: 14px;
+  height: 14px;
+  margin: 8px 0 0 8px;
+  background: #fff;
+  position: absolute;
+  border-radius: 50%;
+}
+
+@keyframes pulse {
+  0% {
+    transform: rotate(-45deg) scale(1);
+  }
+  50% {
+    transform: rotate(-45deg) scale(1.2);
+  }
+  100% {
+    transform: rotate(-45deg) scale(1);
+  }
+}
+
+.transaction-popup {
+  padding: 10px;
+}
+
+.transaction-popup h3 {
+  font-weight: bold;
+  margin-bottom: 5px;
+}
+
+.center-button {
+  padding: 8px 12px;
+  background: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: background-color 0.3s;
+}
+
+.center-button:hover {
+  background: #f0f0f0;
+}
+
+/* Override Leaflet's default z-index */
+.leaflet-pane {
+  z-index: 400;
+}
+
+.leaflet-top,
+.leaflet-bottom {
+  z-index: 900;
+}
+
+
+/* Add or update these styles */
+.leaflet-container {
+  width: 100%;
+  height: 100%;
+  z-index: 1;
+  cursor: grab;
+  position: relative;
+}
+
+.leaflet-container:active {
+  cursor: grabbing;
+}
+
+.leaflet-dragging .leaflet-container {
+  cursor: grabbing;
+}
+
+.leaflet-dragging {
+  cursor: grabbing !important;
+}
+
+
+
+/* Add these styles for the popup */
+.location-popup .leaflet-popup-content {
+  margin: 0;
+  min-width: 300px;
+}
+
+.location-popup .leaflet-popup-content-wrapper {
+  padding: 0;
+  border-radius: 8px;
+}
+
+/* Scrollbar styles */
+.location-popup .max-h-60::-webkit-scrollbar {
+  width: 6px;
+}
+
+.location-popup .max-h-60::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.location-popup .max-h-60::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 3px;
+}
+
+.location-popup .max-h-60::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
