@@ -82,7 +82,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         videoDetection.descriptor
       );
 
-      if (!(distance < 0.4)) { 
+      if (distance < 0.45) { 
         onSuccess();
       } else {
         setError('Face does not match the profile image');
@@ -105,7 +105,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         initial={{ scale: 0.9, opacity: 0 }}
         animate={{ scale: 1, opacity: 1 }}
         exit={{ scale: 0.9, opacity: 0 }}
-        className="bg-white rounded-lg p-6 max-w-md w-full"
+        className="bg-white rounded-lg p-6 max-w-4xl  w-full"
       >
         <div className="flex justify-between items-center mb-4">
           <h3 className="text-xl font-bold">Face Verification</h3>
@@ -140,7 +140,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         <button
           onClick={verifyFace}
           disabled={isLoading || isVerifying}
-          className="w-full bg-blue-500 text-white p-3 rounded-lg hover:bg-blue-600 transition-colors flex items-center justify-center disabled:bg-gray-400"
+          className="w-full bg-[#E60000] text-white p-3 rounded-lg hover:bg-[#FF0000] transition-colors flex items-center justify-center disabled:bg-[#cccccc]"
         >
           {isVerifying ? (
             <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white" />
@@ -157,3 +157,5 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
 };
 
 export default FaceVerificationModal;
+
+

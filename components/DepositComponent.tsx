@@ -6,6 +6,7 @@ import SuccessModal from "./SuccessModal";
 import SignatureVerificationModal from "./SignatureVerificationModal";
 import { API } from '../utils/api';
 import base64 from 'base64-js';
+import BranchServiceModal from './BranchServiceModal';
 
 // Utility function to convert numbers to words
 const numberToWords = (num: number): string => {
@@ -78,7 +79,9 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
   const [drawnSignature, setDrawnSignature] = useState<string>('');
   const [loading, setLoading] = useState(false);
   const [transactionNumber, setTransactionNumber] = useState<string>('');
-  const [isSubmitting, setIsSubmitting] = useState(false); 
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [assignedTeller, setAssignedTeller] = useState<string>('');
+  const [showBranchServiceModal, setShowBranchServiceModal] = useState(false);
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -137,31 +140,30 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
   };
 
   const handleVerificationSuccess = async (signature: string) => {
+    setDrawnSignature(signature);
+    setShowVerificationModal(false);
+    setShowBranchServiceModal(true);
+  };
+
+  const handleBranchServiceConfirm = async () => {
     if (isSubmittingRef.current) {
-      console.log('Submission already in progress, skipping...');
-      return; // Prevent multiple submissions
+      return;
     }
     
-    console.log('Starting verification success process...');
     isSubmittingRef.current = true;
     setLoading(true);
     
     try {
-      // Fetch address first
       const addressData = await fetchDepositorAddress();
-      console.log('Fetched address data:', addressData);
-      
-      // Generate unique 6-digit number
       const uniqueNumber = Math.floor(100000 + Math.random() * 900000).toString();
-      console.log('Generated unique number:', uniqueNumber);
+      const branchCode = localStorage.getItem('branchCode') || '';
       
-      // Prepare deposit data with account info from props
       const depositData = {
         acc_holder_name: accountName,
         amount_in_words: numberToWords(parseInt(amount)),
         amount_in_figures: parseFloat(amount),
         source_of_funds: "Cash",
-        signature: signature,
+        signature: drawnSignature,
         account_number: accountNumber,
         deposited_by: accountName,
         depositor_address: addressData || {
@@ -173,9 +175,9 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
         },
         account_type: "Savings",
         Customer_Unique_Number: uniqueNumber,
+        system: true,
+        branch: branchCode,
       };
-
-      console.log('Prepared deposit data:', depositData);
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/deposit`, {
         method: 'POST',
@@ -184,23 +186,76 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
         },
         body: JSON.stringify(depositData),
       }).then(res => res.json());
-      
-      console.log('API response:', result);
 
       if (!result.error) {
-        console.log('Deposit successful, showing success modal...');
-        setShowVerificationModal(false);
+        setShowBranchServiceModal(false);
+        setTransactionNumber(result.data.Queue_number || uniqueNumber);
+        setAssignedTeller(result.data.assigned_to || '');
         setShowSuccessModal(true);
-        setTransactionNumber(uniqueNumber);
       } else {
-        console.error('API error:', result.message);
         throw new Error(result.message);
       }
-    } catch (err: unknown) {
-      console.error('Deposit error:', err);
+    } catch (err) {
       handleVerificationError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
-      console.log('Resetting submission state...');
+      setLoading(false);
+      isSubmittingRef.current = false;
+    }
+  };
+
+  const handleBranchServiceDecline = async () => {
+    if (isSubmittingRef.current) {
+      return;
+    }
+    
+    isSubmittingRef.current = true;
+    setLoading(true);
+    
+    try {
+      const addressData = await fetchDepositorAddress();
+      const uniqueNumber = Math.floor(100000 + Math.random() * 900000).toString();
+      const branchCode = localStorage.getItem('branchCode') || '';
+      
+      const depositData = {
+        acc_holder_name: accountName,
+        amount_in_words: numberToWords(parseInt(amount)),
+        amount_in_figures: parseFloat(amount),
+        source_of_funds: "Cash",
+        signature: drawnSignature,
+        account_number: accountNumber,
+        deposited_by: accountName,
+        depositor_address: addressData || {
+          city: '',
+          subcity: '',
+          woreda: '',
+          house_number: '',
+          telephone: ''
+        },
+        account_type: "Savings",
+        Customer_Unique_Number: uniqueNumber,
+        system: false,
+        branch: branchCode,
+      };
+
+      const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/deposit`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(depositData),
+      }).then(res => res.json());
+
+      if (!result.error) {
+        setShowBranchServiceModal(false);
+        setTransactionNumber(result.data.Queue_number || uniqueNumber);
+        setAssignedTeller(result.data.assigned_to || '');
+        setShowSuccessModal(true);
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err) {
+      handleVerificationError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
       setLoading(false);
       isSubmittingRef.current = false;
     }
@@ -226,89 +281,105 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, x: 100 }}
+        initial={{ opacity: 0, x: 20 }}
         animate={{ opacity: 1, x: 0 }}
-        exit={{ opacity: 0, x: -100 }}
-        className="bg-white rounded-lg shadow-lg p-8 w-full max-w-4xl mx-auto"
+       
+        className="w-full max-w-7xl mx-auto p-6 space-y-8 bg-gray-50"
       >
-        <div className="flex items-center mb-6">
-          <button onClick={onBack} className="mr-4">
-            <ArrowLeft className="w-6 h-6" />
-          </button>
-          <h2 className="text-2xl font-bold">Deposit Funds</h2>
-        </div>
-
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
-                Amount to Deposit
-              </label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                  <DollarSign className="w-5 h-5 text-gray-400" />
+       <div className="flex items-center justify-between">
+                 <button 
+                   onClick={onBack}
+                   className="flex items-center gap-2 text-[#E60000] hover:text-[#FF0000] transition-colors"
+                 >
+                   <ArrowLeft className="w-6 h-6" />
+                   <span className="text-lg font-semibold">Back</span>
+                 </button>
+                 <h2 className="text-3xl font-bold bg-gradient-to-r from-[#E60000] to-[#FF0000] bg-clip-text text-transparent">Deposit Funds</h2>
+               </div>
+        <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Account Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <DollarSign className="text-[#E60000]" />
+                  <p className="text-gray-500 text-sm uppercase tracking-wider">Available Balance</p>
                 </div>
-                <input
-                  type="number"
-                  id="amount"
-                  value={amount}
-                  onChange={handleAmountChange}
-                  className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="0.00"
-                  step="0.01"
-                  min="0"
-                  max="1000000"
-                />
+                <p className="font-semibold text-lg">ETB {balance.toFixed(2)}</p>
+              </div>
+
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <DollarSign className="text-[#E60000]" />
+                  <p className="text-gray-500 text-sm uppercase tracking-wider">Account Number</p>
+                </div>
+                <p className="font-semibold text-lg">{accountNumber}</p>
               </div>
             </div>
 
-            <div>
-              <label htmlFor="amountInWords" className="block text-sm font-medium text-gray-700 mb-2">
-                Amount in Words
-              </label>
-              <input
-                type="text"
-                id="amountInWords"
-                value={amount ? numberToWords(parseInt(amount)) : ''}
-                readOnly
-                className="block w-full p-2 border border-gray-300 rounded-md bg-gray-100"
-              />
+            {/* Amount Input Section */}
+            <div className="space-y-6">
+              <div>
+                <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount to Deposit
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    id="amount"
+                    value={amount}
+                    onChange={handleAmountChange}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000] focus:border-transparent transition-all duration-200"
+                    placeholder="0.00"
+                    step="0.01"
+                    min="1"
+                    max="1000000"
+                    disabled={loading}
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount in Words
+                </label>
+                <input
+                  type="text"
+                  value={amount ? numberToWords(parseInt(amount)) : ''}
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                  disabled
+                  placeholder="Amount in words will appear here"
+                />
+              </div>
+
+              {amount && !error && (
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    New balance after deposit: ETB {(balance + parseFloat(amount || '0')).toFixed(2)}
+                  </p>
+                </div>
+              )}
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Current Balance
-            </label>
-            <p className="text-lg font-semibold">${balance.toFixed(2)}</p>
-            {amount && !error && (
-              <p className="text-sm text-gray-600 mt-1">
-                New balance after deposit: ${(balance + parseFloat(amount || '0')).toFixed(2)}
-              </p>
+            {/* Error Message */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-4 rounded-xl bg-red-50 border border-red-200"
+              >
+                <p className="text-sm text-red-600">{error}</p>
+              </motion.div>
             )}
-          </div>
 
-          {error && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-red-500"
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-[#E60000] to-[#FF0000] text-white p-3 rounded-lg font-semibold hover:from-[#B30000] hover:to-[#FF4444] transition-all duration-300 transform hover:scale-105 disabled:opacity-70 disabled:cursor-not-allowed"
+              disabled={isDepositButtonDisabled || loading}
             >
-              {error}
-            </motion.p>
-          )}
-
-          <button
-            type="submit"
-            className={`w-full p-3 rounded-md text-lg font-medium transition-colors
-              ${isDepositButtonDisabled 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-green-500 hover:bg-green-600 text-white'}`}
-            disabled={isDepositButtonDisabled}
-          >
-            Deposit
-          </button>
-        </form>
+              {loading ? 'Processing...' : 'Deposit'}
+            </button>
+          </form>
       </motion.div>
 
       <AnimatePresence>
@@ -335,13 +406,22 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
           />
         )}
 
+        {showBranchServiceModal && (
+          <BranchServiceModal
+            branchCode={localStorage.getItem('branchCode') || ''}
+            onConfirm={handleBranchServiceConfirm}
+            onDecline={handleBranchServiceDecline}
+          />
+        )}
+
         {showSuccessModal && (
-         <SuccessModal
-         amount={amount}
-         onClose={handleSuccessClose}
-         type="deposit"
-         customerNumber={transactionNumber}  // Changed from transactionNumber to customerNumber
-       />
+          <SuccessModal
+            amount={amount}
+            onClose={handleSuccessClose}
+            type="deposit"
+            customerNumber={transactionNumber}
+            assignedTo={assignedTeller}
+          />
         )}
       </AnimatePresence>
     </>

@@ -33,10 +33,13 @@
     "face-api.js": "^0.22.2",
     "framer-motion": "^11.11.17",
     "leaflet": "^1.9.4",
+    "lodash": "^4.17.21",
     "lucide-react": "^0.441.0",
+    "nanoid": "^5.0.9",
     "next": "^15.0.3",
     "oracledb": "^6.6.0",
     "postcss": "8.4.47",
+    "qrcode.react": "^4.1.0",
     "react": "^18.3.1",
     "react-datepicker": "^7.5.0",
     "react-dom": "^18.3.1",
@@ -54,6 +57,7 @@
     "@types/node": "^22.9.0",
     "@types/oracledb": "^6.5.2",
     "@types/react-signature-canvas": "^1.0.6",
-    "@types/three": "^0.170.0"
+    "@types/three": "^0.170.0",
+    "@types/uuid": "^10.0.0"
   }
 }

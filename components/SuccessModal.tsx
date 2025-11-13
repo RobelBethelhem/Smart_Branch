@@ -5,46 +5,13 @@ import { Check } from 'lucide-react';
 interface SuccessModalProps {
   amount: string;
   onClose: () => void;
-  type?: 'withdrawal' | 'deposit' | 'transfer' | 'exchange' | 'otherBankTransfer';
-  customerNumber?: string;
+  type: 'withdrawal' | 'deposit' | 'transfer' | 'otherBankTransfer' | 'exchange';
+  customerNumber: string;
+  assignedTo?: string;
 }
 
-interface SuccessModalProps {
-  amount: string;
-  onClose: () => void;
-  type?: 'withdrawal' | 'deposit' | 'transfer' | 'exchange' | 'otherBankTransfer';
-  customerNumber?: string;
-}
-
-const SuccessModal: React.FC<SuccessModalProps> = ({ amount, onClose, type = 'withdrawal', customerNumber }) => {
-  const getSuccessMessage = () => {
-    switch (type) {
-      case 'withdrawal':
-        return `Withdrawal of $${amount} has been processed`;
-      case 'deposit':
-        return `Deposit of $${amount} has been processed`;
-      case 'transfer':
-        return `Transfer of $${amount} has been processed`;
-      case 'exchange':
-        return `Exchange of ${amount} has been processed`;
-      case 'otherBankTransfer':
-        return `Inter-bank transfer of $${amount} has been processed`;
-      default:
-        return `Transaction of $${amount} has been processed`;
-    }
-  };
-
-  const getTitle = () => {
-    switch (type) {
-      case 'withdrawal': return 'Withdrawal Successful!';
-      case 'deposit': return 'Deposit Successful!';
-      case 'transfer': return 'Transfer Successful!';
-      case 'exchange': return 'Exchange Successful!';
-      case 'otherBankTransfer': return 'Inter-bank Transfer Successful!';
-      default: return 'Transaction Successful!';
-    }
-  };
-
+const SuccessModal: React.FC<SuccessModalProps> = ({ amount, onClose, type, customerNumber, assignedTo }) => {
+  console.log("ssigned to Tellerssigned to Teller", assignedTo)
   return (
     <motion.div
       initial={{ opacity: 0 }}
@@ -63,20 +30,20 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ amount, onClose, type = 'wi
             <Check className="w-8 h-8 text-green-500" />
           </div>
         </div>
-        <h3 className="text-xl font-bold mb-2">{getTitle()}</h3>
-        <p className="text-gray-600 mb-4">
-          {getSuccessMessage()}
-        </p>
-        {customerNumber && (
-          <p className="text-gray-600 mb-4">
-            Your Reference Number: <span className="font-semibold">{customerNumber}</span>
+        <h3 className="text-2xl font-bold mb-4">Transaction Successful!</h3>
+        <p className="text-lg mb-2">Amount: ETB {amount}</p>
+        <p className="text-md mb-2">Reference Number: {customerNumber}</p>
+        
+        {assignedTo && (
+          <p className="text-md mb-2 text-blue-600">
+            Assigned to Teller: {assignedTo}
           </p>
         )}
         <button
           onClick={onClose}
-          className="w-full px-4 py-2 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-colors"
+          className="mt-4 bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600"
         >
-          Done
+          Close
         </button>
       </motion.div>
     </motion.div>

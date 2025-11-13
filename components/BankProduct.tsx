@@ -13,25 +13,25 @@ const products: Product[] = [
     name: 'ATM Usage',
     description: 'Access your money 24/7 with our widespread ATM network.',
     videoUrl: 'video/sample.mp4',
-    imageUrl: 'profile/profile.jpg',
+    imageUrl: 'profile/default-profile.jpg',
   },
   {
     name: 'Internet Banking',
     description: 'Manage your accounts, transfer funds, and pay bills online.',
     videoUrl: 'video/sample.mp4',
-    imageUrl: 'profile/akalework.jpg',
+    imageUrl: 'profile/default-profile.jpg',
   },
   {
     name: 'Mobile Banking',
     description: 'Bank on-the-go with our user-friendly mobile app.',
     videoUrl: 'video/sample.mp4',
-    imageUrl: 'profile/profile.jpg',
+    imageUrl: 'profile/default-profile.jpg',
   },
   {
     name: 'Loans',
     description: 'Get the financial support you need with our flexible loan options.',
     videoUrl: 'video/sample.mp4',
-    imageUrl: 'profile/akalework.jpg',
+    imageUrl: 'profile/default-profile.jpg',
   },
 ];
 

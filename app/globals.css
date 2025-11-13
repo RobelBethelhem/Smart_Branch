@@ -26,6 +26,55 @@ body {
     rgb(var(--background-start-rgb));
 }
 
+  
+.snap-x {
+  scroll-snap-type: x mandatory;
+}
+
+.snap-center {
+  scroll-snap-align: center;
+}
+
+.touch-pan-x {
+  touch-action: pan-x;
+}
+
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+@media (hover: none) {
+  .scrollbar-hide {
+    -webkit-overflow-scrolling: touch;
+    overflow-x: scroll;
+  }
+}
+
+.animate-gradient-x {
+  background-size: 200% 200%;
+  animation: gradient-x 15s ease infinite;
+}
+
+@keyframes gradient-x {
+  0% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+  100% {
+    background-position: 0% 50%;
+  }
+}
+
+
+
 /* MUI Overrides */
 .MuiPagination-root .MuiPaginationItem-root.Mui-selected {
   background-color: #3b82f6;

@@ -166,6 +166,269 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
         const [limit] = useState(10);
         const [totalPages, setTotalPages] = useState(1);
 
+
+        const [summaryStats, setSummaryStats] = useState({
+          totalCredit: 0,
+          totalDebit: 0,
+          netPosition: 0,
+          transactionCount: 0,
+          openingBalance: 0,
+          netBalance: 0
+        });
+
+
+
+
+        const calculateSummaryStats = (transactions: Transaction[], openingBalance: number) => {
+          const stats = transactions.reduce((acc, transaction) => {
+            const amount = transaction.DR_CR_DIFF;
+            if (amount > 0) {
+              acc.totalCredit += amount;
+            } else {
+              acc.totalDebit += Math.abs(amount);
+            }
+            return acc;
+          }, {
+            totalCredit: 0,
+            totalDebit: 0,
+            transactionCount: transactions.length
+          });
+        
+          const netPosition = stats.totalCredit - stats.totalDebit;
+          const netBalance = netPosition + openingBalance;
+
+
+          return {
+            ...stats,
+            netPosition,
+            openingBalance,
+            netBalance,
+            transactionCount: transactions.length
+          };
+        };
+
+
+
+
+        const TransactionSummary = () => (
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Total Credit</p>
+                  <h3 className="text-xl font-bold text-green-600">
+                    {formatAmount(summaryStats.totalCredit, currency || '')}
+                  </h3>
+                </div>
+                <div className="p-3 bg-green-50 rounded-full">
+                  <svg
+                    className="w-6 h-6 text-green-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                Total incoming transactions
+              </p>
+            </motion.div>
+        
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Total Debit</p>
+                  <h3 className="text-xl font-bold text-red-600">
+                    {formatAmount(summaryStats.totalDebit, currency || '')}
+                  </h3>
+                </div>
+                <div className="p-3 bg-red-50 rounded-full">
+                  <svg
+                    className="w-6 h-6 text-red-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M20 12H4"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                Total outgoing transactions
+              </p>
+            </motion.div>
+
+
+            <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.4 }}
+      className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">Opening Balance</p>
+          <h3 className="text-xl font-bold text-gray-600">
+            {formatAmount(summaryStats.openingBalance, currency || '')}
+          </h3>
+        </div>
+        <div className="p-3 bg-gray-50 rounded-full">
+          <svg
+            className="w-6 h-6 text-gray-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"
+            />
+          </svg>
+        </div>
+      </div>
+      <p className="text-xs text-gray-400 mt-2">
+        Balance at period start
+      </p>
+    </motion.div>
+
+    {/* Add Net Balance */}
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ delay: 0.5 }}
+      className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
+    >
+      <div className="flex items-center justify-between">
+        <div>
+          <p className="text-sm text-gray-500">Net Balance</p>
+          <h3 className={`text-xl font-bold ${
+            summaryStats.netBalance >= 0 ? 'text-blue-600' : 'text-red-600'
+          }`}>
+            {formatAmount(summaryStats.netBalance, currency || '')}
+          </h3>
+        </div>
+        <div className="p-3 bg-blue-50 rounded-full">
+          <svg
+            className="w-6 h-6 text-blue-500"
+            fill="none"
+            stroke="currentColor"
+            viewBox="0 0 24 24"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+            />
+          </svg>
+        </div>
+      </div>
+      <p className="text-xs text-gray-400 mt-2">
+        Opening Balance + Net Position
+      </p>
+    </motion.div>
+
+        
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Net Position</p>
+                  <h3 className={`text-xl font-bold ${
+                    summaryStats.netPosition >= 0 ? 'text-blue-600' : 'text-orange-600'
+                  }`}>
+                    {formatAmount(summaryStats.netPosition, currency || '')}
+                  </h3>
+                </div>
+                <div className="p-3 bg-blue-50 rounded-full">
+                  <svg
+                    className="w-6 h-6 text-blue-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 7h6m0 10H9m3-5H9m1-4h4m4 0l-4-4m0 0L9 3m5 0v18"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                Net transaction flow
+              </p>
+            </motion.div>
+        
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.3 }}
+              className="bg-white p-4 rounded-lg shadow-sm border border-gray-100"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-gray-500">Transactions</p>
+                  <h3 className="text-xl font-bold text-purple-600">
+                    {summaryStats.transactionCount}
+                  </h3>
+                </div>
+                <div className="p-3 bg-purple-50 rounded-full">
+                  <svg
+                    className="w-6 h-6 text-purple-500"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2"
+                    />
+                  </svg>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400 mt-2">
+                Total number of transactions
+              </p>
+            </motion.div>
+          </div>
+        );
+
+
+
+
+
+
         const renderAccountDetails = () => (
             <div className="bg-gray-50 rounded-lg p-4 mb-6">
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -218,6 +481,7 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
       if (data.success) {
         setTransactions(data.transactions);
         setTotalPages(data.pagination.totalPages);
+        setSummaryStats(calculateSummaryStats(data.transactions, data.openingBalance));
       } else {
         setError(data.message || 'Failed to fetch transactions');
       }
@@ -235,6 +499,22 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
     }
   }, [accountNumber, selectedFilter, startDate, endDate, page, limit]);
 
+
+  // useEffect(() => {
+  //   if (transactions && transactions.length > 0) {
+  //     setSummaryStats(calculateSummaryStats(transactions));
+  //   } else {
+  //     setSummaryStats({
+  //       totalCredit: 0,
+  //       totalDebit: 0,
+  //       netPosition: 0,
+  //       transactionCount: 0
+  //     });
+  //   }
+  // }, [transactions]);
+
+
+
   useEffect(() => {
     const fetchTransactionTypes = async () => {
       try {
@@ -244,7 +524,7 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
           setTransactionTypes(data.transactionTypes);
         }
       } catch (error) {
-        console.error('Failed to fetch transaction types:', error);
+        console.log('Failed to fetch transaction types:', error);
       }
     };
 
@@ -299,18 +579,21 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
       className="max-w-6xl mx-auto p-6"
     >
       <div className="bg-white rounded-xl shadow-lg p-6">
-        <div className="flex justify-between items-center mb-6">
-          <div>
-            <h2 className="text-2xl font-bold text-gray-800">Account Statement</h2>
-            <p className="text-sm text-gray-500 mt-1">View your transaction history</p>
-          </div>
-          <button
-            onClick={onBack}
-            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
-          >
-            Back to Dashboard
-          </button>
-        </div>
+
+      <div className="flex justify-between items-center mb-6">
+    <div>
+      <h2 className="text-2xl font-bold text-gray-800">Account Statement</h2>
+      <p className="text-sm text-gray-500 mt-1">View your transaction history</p>
+    </div>
+    <button
+      onClick={onBack}
+      className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+    >
+      Back to Dashboard
+    </button>
+  </div>
+
+      <TransactionSummary />
 
         {renderAccountDetails()}
 
@@ -394,6 +677,7 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
                 <thead className="bg-gray-50">
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Reference</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Balance</th>
@@ -410,6 +694,9 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
                     >
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {formatDate(transaction.VALUE_DT)}
+                      </td>
+                      <td className="px-6 py-4 text-sm text-gray-500">
+                        {transaction.TRN_REF_NO}
                       </td>
                       <td className="px-6 py-4 text-sm text-gray-500">
                         {getTransactionDescription(transaction)}

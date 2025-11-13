@@ -3,8 +3,11 @@ export interface Transaction {
   TRN_DESC: string;
   DR_CR_DIFF: number;
   CLOSE_BAL: number;
-
+  TRN_REF_NO: string;
 }
+
+
+
 
 export interface AccountData {
     BRANCH_CODE: string;

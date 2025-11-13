@@ -140,7 +140,8 @@ export async function POST(request: NextRequest) {
     const { accountNumber, filter, customDateRange, page, limit } = await request.json();
 
     // Calculate date range based on filter
-    let dateFrom, dateTo = new Date();
+    let dateFrom = new Date();
+    let dateTo = new Date();
     
     switch (filter) {
       case 'today':
@@ -169,14 +170,54 @@ export async function POST(request: NextRequest) {
           dateFrom = new Date(customDateRange.startDate);
           dateTo = new Date(customDateRange.endDate);
         }
+        else {
+          dateFrom = new Date(dateTo.getTime() - 30 * 24 * 60 * 60 * 1000);
+        }
         break;
       default:
         dateFrom = new Date(dateTo.getTime() - 30 * 24 * 60 * 60 * 1000);
     }
 
+
+    const openingBalanceQuery = `
+    select * from (
+      select 
+        FCUBSPRD.Z_FN_CL_GETCLOSEBAL_stmt1(a.ac_no,a.value_dt) + 
+        FCUBSPRD.Z_FN_CL_GETCLOSEBAL_stmt2(a.ac_no,a.value_dt,a.ac_entry_sr_no) CLOSE_BAL
+      from FCUBSPRD.ACVWS_ALL_AC_ENTRIES a, FCUBSPRD.Sttms_Trn_code b,
+      (SELECT DISTINCT ACVWS_ALL_AC_ENTRIES1.TRN_REF_NO COL1
+       FROM FCUBSPRD.ACVWS_ALL_AC_ENTRIES ACVWS_ALL_AC_ENTRIES1
+       WHERE ACVWS_ALL_AC_ENTRIES1.AC_NO = :AccountNo
+       AND ACVWS_ALL_AC_ENTRIES1.VALUE_DT < to_date(trunc(:DateFrom))
+      MINUS
+       SELECT ACVWS_ALL_AC_ENTRIES2.TRN_REF_NO
+       FROM FCUBSPRD.ACVWS_ALL_AC_ENTRIES ACVWS_ALL_AC_ENTRIES2
+       WHERE ACVWS_ALL_AC_ENTRIES2.EVENT = 'REVR'
+       AND ACVWS_ALL_AC_ENTRIES2.AC_NO = :AccountNo
+       AND ACVWS_ALL_AC_ENTRIES2.VALUE_DT < to_date(trunc(:DateFrom))) TEMP0 
+      where a.Trn_code=b.Trn_code 
+      and a.auth_stat = 'A' 
+      and a.trn_ref_no not in('103FTOR141740001','103FTOR141740007') 
+      and a.dont_showin_stmt = 'N'
+      and a.TRN_REF_NO= TEMP0.COL1
+      AND A.AC_NO = :AccountNo 
+      and a.VALUE_DT < to_date(trunc(:DateFrom))
+      ORDER BY a.VALUE_DT DESC, a.ac_entry_sr_no DESC)
+    where rownum = 1`;
+
+    const openingDate = new Date(dateFrom.getTime());
+    openingDate.setDate(openingDate.getDate() - 1);
+
+    const openingBalanceResult = await executeQuery(openingBalanceQuery, 
+      [accountNumber, dateFrom, accountNumber, dateFrom, accountNumber, dateFrom], 
+      { outFormat: oracledb.OUT_FORMAT_OBJECT }
+    );
+    
+
     const query = `
     select * from (
     select to_char(a.value_dt,'DD-MON-YYYY') value_dt,
+     a.trn_ref_no TRN_REF_NO,
     CASE WHEN a.MODULE = 'RT' OR a.MODULE = 'FT' OR a.MODULE = 'PC' OR a.MODULE = 'CG' THEN
     (select p.product_description from FCUBSPRD.cstm_product p where p.product_code = SUBSTR(a.trn_ref_no,4,4) ) ELSE b.Trn_Desc END Trn_Desc,
     decode(drcr_ind,'D',-a.lcy_amount,a.lcy_amount) Dr_Cr_Diff,
@@ -213,6 +254,11 @@ where value_dt>=to_date(trunc(:DateFrom))
       dateFrom
     ];
 
+
+    const openingBalance = openingBalanceResult.data?.[0]?.CLOSE_BAL || 0;
+
+
+
     const result = await executeQuery(query, bindParams, {
       outFormat: oracledb.OUT_FORMAT_OBJECT
     });
@@ -226,12 +272,14 @@ where value_dt>=to_date(trunc(:DateFrom))
       VALUE_DT: row.VALUE_DT,
       TRN_DESC: row.TRN_DESC,
       DR_CR_DIFF: parseFloat(row.DR_CR_DIFF?.toString() || '0'),
-      CLOSE_BAL: parseFloat(row.CLOSE_BAL?.toString() || '0')
+      CLOSE_BAL: parseFloat(row.CLOSE_BAL?.toString() || '0'),
+      TRN_REF_NO: row.TRN_REF_NO
     }));
 
     return NextResponse.json({
       success: true,
       transactions: transformedRows,
+      openingBalance: parseFloat(openingBalance.toString()),
       pagination: {
         page: page || 1,
         limit: limit || 10,

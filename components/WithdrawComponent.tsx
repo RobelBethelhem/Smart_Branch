@@ -4,6 +4,7 @@ import { ArrowLeft, DollarSign } from 'lucide-react';
 import SignatureModal from './SignatureModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import SuccessModal from './SuccessModal';
+import BranchServiceModal from './BranchServiceModal';
 
 
 
@@ -48,8 +49,8 @@ interface WithdrawComponentProps {
   onBack: () => void;
   balance: number;
   storedSignature: string;
-  accountNumber: string;  // Add this
-  accountName: string;  
+  accountNumber: string;
+  accountName: string;
 }
 
 const WithdrawComponent: React.FC<WithdrawComponentProps> = ({ 
@@ -63,7 +64,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
   const [transactionNumber, setTransactionNumber] = useState<string>('');
   const isSubmittingRef = useRef(false);
   const [amount, setAmount] = useState('');
-  const [error, setError] = useState('');
+  const [error, setError] = useState<string | null>(null);
   const [showSignatureModal, setShowSignatureModal] = useState(false);
   const [showVerificationModal, setShowVerificationModal] = useState(false);
   const [drawnSignature, setDrawnSignature] = useState<string>('');
@@ -71,6 +72,9 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [paymentNarrative, setPaymentNarrative] = useState('');
   const [amountInWords, setAmountInWords] = useState('');
+  const [showBranchServiceModal, setShowBranchServiceModal] = useState(false);
+  const [referenceNumber, setReferenceNumber] = useState('');
+  const [assignedTeller, setAssignedTeller] = useState<string>('');
 
   const validateAmount = () => {
     const withdrawAmount = parseFloat(amount);
@@ -129,35 +133,44 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
     }
   };
 
-  const handleVerificationSuccess = async (signature: string) => {
-    if (isSubmittingRef.current) {
-      console.log('Submission already in progress, skipping...');
-      return;
-    }
-  
-    console.log('Starting withdrawal verification process...');
-    isSubmittingRef.current = true;
-    setIsProcessing(true);
-  
+  const handleVerificationSuccess = async () => {
     try {
-      const uniqueNumber = Math.floor(100000 + Math.random() * 900000).toString();
-      console.log('Generated unique number:', uniqueNumber);
+      setShowVerificationModal(false);
+      setShowBranchServiceModal(true);
+    } catch (err) {
+      console.error('Verification error:', err);
+      handleVerificationError(err instanceof Error ? err.message : 'An unknown error occurred');
+    }
+  };
+
+  const generateReferenceNumber = () => {
+    // Generate a 6-digit reference number
+    return Math.floor(100000 + Math.random() * 900000).toString();
+  };
+
+  const handleBranchServiceConfirm = async () => {
+    const branchCode = localStorage.getItem('branchCode') || '';
+    try {
+      setIsProcessing(true);
+      const newReferenceNumber = generateReferenceNumber();
+      setReferenceNumber(newReferenceNumber);
 
       const withdrawData = {
-        acc_holder_name: accountName,
-        amount_in_words: amountInWords,
         amount_in_figures: parseFloat(amount),
-        source_of_funds: "Cash",
-        signature: signature,
+        amount_in_words: amountInWords,
         account_number: accountNumber,
+        acc_holder_name: accountName,
+        transactionType: 'withdrawal',
+        system: true,
+        branch: branchCode,
+        signature: drawnSignature,
+        source_of_funds: "Cash",
         withdrawn_by: accountName,
         account_type: "Savings",
-        Customer_Unique_Number: uniqueNumber,
+        reference_number: newReferenceNumber,
         payment_narrative: paymentNarrative || 'Cash Withdrawal',
       };
-  
-      console.log('Prepared withdrawal data:', withdrawData);
-  
+
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/withdraw`, {
         method: 'POST',
         headers: {
@@ -165,25 +178,65 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
         },
         body: JSON.stringify(withdrawData),
       }).then(res => res.json());
-  
-      console.log('API response:', result);
-  
+
       if (!result.error) {
-        console.log('Withdrawal successful, showing success modal...');
-        setShowVerificationModal(false);
+        setShowBranchServiceModal(false);
+        setAssignedTeller(result.data?.assigned_to || '');
+        console.log('Assigned teller:', result.data?.assigned_to);
         setShowSuccessModal(true);
-        setTransactionNumber(uniqueNumber);
       } else {
-        console.error('API error:', result.message);
         throw new Error(result.message);
       }
-    } catch (err: unknown) {
-      console.error('Withdrawal error:', err);
-      handleVerificationError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process transaction');
     } finally {
-      console.log('Resetting submission state...');
       setIsProcessing(false);
-      isSubmittingRef.current = false;
+    }
+  };
+
+  const handleBranchServiceDecline = async () => {
+    const branchCode = localStorage.getItem('branchCode') || '';
+    try {
+      setIsProcessing(true);
+      const newReferenceNumber = generateReferenceNumber();
+      setReferenceNumber(newReferenceNumber);
+
+      const withdrawData = {
+        amount_in_figures: parseFloat(amount),
+        amount_in_words: amountInWords,
+        account_number: accountNumber,
+        acc_holder_name: accountName,
+        transactionType: 'withdrawal',
+        system: false,
+        branch: branchCode,
+        signature: drawnSignature,
+        source_of_funds: "Cash",
+        withdrawn_by: accountName,
+        account_type: "Savings",
+        reference_number: newReferenceNumber,
+        payment_narrative: paymentNarrative || 'Cash Withdrawal',
+      };
+
+      const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/withdraw`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(withdrawData),
+      }).then(res => res.json());
+
+      if (!result.error) {
+        setShowBranchServiceModal(false);
+        setAssignedTeller(result.data?.assigned_to || '');
+        console.log('Assigned teller:', result.data?.assigned_to);
+        setShowSuccessModal(true);
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to process transaction');
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -205,86 +258,105 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
         initial={{ opacity: 0, x: 100 }}
         animate={{ opacity: 1, x: 0 }}
         exit={{ opacity: 0, x: -100 }}
-        className="bg-white rounded-lg shadow-lg p-8 w-full max-w-4xl mx-auto"
+        className="w-full max-w-7xl mx-auto p-6 space-y-8 bg-gray-50"
       >
-        <div className="flex items-center mb-6">
+        <div className="flex items-center justify-between">
           <button 
             onClick={onBack}
-            className="mr-4 hover:bg-gray-100 p-2 rounded-full transition-colors"
+            className="flex items-center gap-2 text-[#E60000] hover:text-[#FF0000] transition-colors"
           >
             <ArrowLeft className="w-6 h-6" />
+            <span className="text-lg font-semibold">Back</span>
           </button>
-          <h2 className="text-2xl font-bold">Withdraw Funds</h2>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-[#E60000] to-[#FF0000] bg-clip-text text-transparent">Withdraw Funds</h2>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
-              Amount to Withdraw
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <DollarSign className="w-5 h-5 text-gray-400" />
+        <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Account Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <DollarSign className="text-[#E60000]" />
+                  <p className="text-gray-500 text-sm uppercase tracking-wider">Available Balance</p>
+                </div>
+                <p className="font-semibold text-lg">ETB {balance.toFixed(2)}</p>
               </div>
-              <input
-                type="number"
-                id="amount"
-                value={amount}
-                onChange={handleAmountChange}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="0.00"
-                step="0.01"
-                min="1"
-                max="50000"
-                disabled={isProcessing}
-              />
+
+              <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                <div className="flex items-center gap-3 mb-2">
+                  <DollarSign className="text-[#E60000]" />
+                  <p className="text-gray-500 text-sm uppercase tracking-wider">Account Number</p>
+                </div>
+                <p className="font-semibold text-lg">{accountNumber}</p>
+              </div>
             </div>
-          </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Amount in Words
-            </label>
-            <input
-              type="text"
-              value={amountInWords}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
-              disabled
-              placeholder="Amount in words will appear here"
-            />
-          </div>
+            {/* Amount Input Section */}
+            <div className="space-y-6">
+              <div>
+                <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount to Withdraw
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    id="amount"
+                    value={amount}
+                    onChange={handleAmountChange}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000] focus:border-transparent transition-all duration-200"
+                    placeholder="0.00"
+                    step="0.01"
+                    min="1"
+                    max="50000"
+                    disabled={isProcessing}
+                  />
+                </div>
+              </div>
 
-          <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Current Balance
-            </label>
-            <p className="text-lg font-semibold">${balance.toFixed(2)}</p>
-            {amount && (
-              <p className="text-sm text-gray-600 mt-1">
-                New balance after withdrawal: ${(balance - parseFloat(amount || '0')).toFixed(2)}
-              </p>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount in Words
+                </label>
+                <input
+                  type="text"
+                  value={amountInWords}
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                  disabled
+                  placeholder="Amount in words will appear here"
+                />
+              </div>
+
+              {amount && (
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    New balance after withdrawal: ETB {(balance - parseFloat(amount || '0')).toFixed(2)}
+                  </p>
+                </div>
+              )}
+            </div>
+
+            {/* Error Message */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-4 rounded-xl bg-red-50 border border-red-200"
+              >
+                <p className="text-sm text-red-600">{error}</p>
+              </motion.div>
             )}
-          </div>
 
-          {error && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-red-500 text-sm"
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-[#E60000] to-[#FF0000] text-white p-3 rounded-lg font-semibold hover:from-[#B30000] hover:to-[#FF4444] transition-all duration-300 transform hover:scale-105 disabled:opacity-70 disabled:cursor-not-allowed"
+              disabled={!amount || parseFloat(amount) <= 0 || parseFloat(amount) > balance || isProcessing}
             >
-              {error}
-            </motion.p>
-          )}
-
-          <button
-            type="submit"
-            className="w-full bg-blue-500 text-white p-3 rounded-md hover:bg-blue-600 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
-            disabled={!amount || parseFloat(amount) <= 0 || parseFloat(amount) > balance || isProcessing}
-          >
-            {isProcessing ? 'Processing...' : 'Withdraw'}
-          </button>
-        </form>
-      </motion.div>
+              {isProcessing ? 'Processing...' : 'Withdraw'}
+            </button>
+          </form>
+        </motion.div>
+    
 
       <AnimatePresence>
         {showSignatureModal && (
@@ -310,12 +382,21 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
           />
         )}
 
+        {showBranchServiceModal && (
+          <BranchServiceModal
+            branchCode={localStorage.getItem('branchCode') || ''}
+            onConfirm={handleBranchServiceConfirm}
+            onDecline={handleBranchServiceDecline}
+          />
+        )}
+
         {showSuccessModal && (
           <SuccessModal
             amount={amount}
             onClose={handleSuccessClose}
             type="withdrawal"
-            customerNumber={transactionNumber}
+            customerNumber={referenceNumber}
+            assignedTo={assignedTeller}
           />
         )}
       </AnimatePresence>

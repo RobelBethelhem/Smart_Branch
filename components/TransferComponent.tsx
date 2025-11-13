@@ -4,6 +4,7 @@ import { ArrowLeft, DollarSign, User, Building } from 'lucide-react';
 import SignatureModal from './SignatureModal';
 import SuccessModal from './SuccessModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
+import BranchServiceModal from './BranchServiceModal';
 
 interface TransferComponentProps {
   onBack: () => void;
@@ -147,6 +148,9 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
   const [isProcessing, setIsProcessing] = useState(false);
   const [transactionNumber, setTransactionNumber] = useState<string>('');
   const isSubmittingRef = useRef(false);
+  const [showBranchServiceModal, setShowBranchServiceModal] = useState(false);
+  const [assignedTeller, setAssignedTeller] = useState<string>('');
+  const [loading, setLoading] = useState(false); 
 
   const handleAmountChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const value = e.target.value;
@@ -260,37 +264,38 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
   };
 
   const handleVerificationSuccess = async (signature: string) => {
-    if (isSubmittingRef.current) {
-      console.log('Submission already in progress, skipping...');
-      return;
-    }
+    setDrawnSignature(signature);
+    setShowVerificationModal(false);
+    setShowBranchServiceModal(true);
+  };
 
-    console.log('Starting transfer verification process...');
+  const handleBranchServiceConfirm = async () => {
+    if (isSubmittingRef.current) return;
+    
     isSubmittingRef.current = true;
-    setIsProcessing(true);
-
+    setLoading(true);
+    
     try {
-      // Generate unique 6-digit number
       const uniqueNumber = Math.floor(100000 + Math.random() * 900000).toString();
-      console.log('Generated unique number:', uniqueNumber);
+      const branchCode = localStorage.getItem('branchCode') || '';
+      const beneficiaryBranch = recipientAccount.substring(0, 3);
 
-      // Prepare transfer data
       const transferData = {
         acc_holder_name: accountName,
         beneficiary_name: recipientName,
-        amount_in_words: amountInWords,
+        amount_in_words: numberToWords(parseInt(amount)),
         amount_in_figures: parseFloat(amount),
-        source_of_funds: "Transfer",
-        signature: signature,
+        signature: drawnSignature,
         account_number: accountNumber,
         beneficiary_account_number: recipientAccount,
-        beneficiary_branch: recipientAccount.substring(0, 3),
+        beneficiary_branch: beneficiaryBranch,
+        transfer_type: "Internal",
         account_type: "Savings",
         Customer_Unique_Number: uniqueNumber,
-        payment_narration: paymentNarrative || 'Fund Transfer',
+        system: true,
+        branch: branchCode,
+        payment_narrative: paymentNarrative || ''
       };
-
-      console.log('Prepared transfer data:', transferData);
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/transfer`, {
         method: 'POST',
@@ -300,23 +305,70 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
         body: JSON.stringify(transferData),
       }).then(res => res.json());
 
-      console.log('API response:', result);
-
       if (!result.error) {
-        console.log('Transfer successful, showing success modal...');
-        setShowVerificationModal(false);
+        setShowBranchServiceModal(false);
+        setTransactionNumber(result.data.Customer_Unique_Number || uniqueNumber);
+        setAssignedTeller(result.data.assigned_to || '');
         setShowSuccessModal(true);
-        setTransactionNumber(uniqueNumber);
       } else {
-        console.error('API error:', result.message);
         throw new Error(result.message);
       }
-    } catch (err: unknown) {
-      console.error('Transfer error:', err);
+    } catch (err) {
       handleVerificationError(err instanceof Error ? err.message : 'An unknown error occurred');
     } finally {
-      console.log('Resetting submission state...');
-      setIsProcessing(false);
+      setLoading(false);
+      isSubmittingRef.current = false;
+    }
+  };
+
+  const handleBranchServiceDecline = async () => {
+    if (isSubmittingRef.current) return;
+    
+    isSubmittingRef.current = true;
+    setLoading(true);
+    
+    try {
+      const uniqueNumber = Math.floor(100000 + Math.random() * 900000).toString();
+      const branchCode = localStorage.getItem('branchCode') || '';
+      const beneficiaryBranch = recipientAccount.substring(0, 3);
+
+      const transferData = {
+        acc_holder_name: accountName,
+        beneficiary_name: recipientName,
+        amount_in_words: numberToWords(parseInt(amount)),
+        amount_in_figures: parseFloat(amount),
+        signature: drawnSignature,
+        account_number: accountNumber,
+        beneficiary_account_number: recipientAccount,
+        beneficiary_branch: beneficiaryBranch,
+        transfer_type: "Internal",
+        account_type: "Savings",
+        Customer_Unique_Number: uniqueNumber,
+        system: false,
+        branch: branchCode,
+        payment_narrative: paymentNarrative || ''
+      };
+
+      const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(transferData),
+      }).then(res => res.json());
+
+      if (!result.error) {
+        setShowBranchServiceModal(false);
+        setTransactionNumber(result.data.Customer_Unique_Number || uniqueNumber);
+        setAssignedTeller(result.data.assigned_to || '');
+        setShowSuccessModal(true);
+      } else {
+        throw new Error(result.message);
+      }
+    } catch (err) {
+      handleVerificationError(err instanceof Error ? err.message : 'An unknown error occurred');
+    } finally {
+      setLoading(false);
       isSubmittingRef.current = false;
     }
   };
@@ -353,137 +405,158 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
   return (
     <>
       <motion.div
-        initial={{ opacity: 0, x: 100 }}
-        animate={{ opacity: 1, x: 0 }}
+        initial={{ opacity: 0, y: 20 }}
+        animate={{ opacity: 1, y: 0 }}
         exit={{ opacity: 0, x: -100 }}
-        className="bg-white rounded-lg shadow-lg p-8 max-w-md mx-auto"
+        className="w-full max-w-7xl mx-auto p-6 space-y-8 bg-gray-50"
       >
-        <div className="flex items-center mb-6">
-          <button onClick={onBack} className="mr-4">
+        <div className="flex items-center justify-between">
+          <button onClick={onBack} className="flex items-center gap-2 text-[#E60000] hover:text-[#FF0000] transition-colors">
             <ArrowLeft className="w-6 h-6" />
+            <span className="text-lg font-semibold">Back</span>
           </button>
-          <h2 className="text-2xl font-bold">Transfer Funds</h2>
+          <h2 className="text-3xl font-bold bg-gradient-to-r from-[#E60000] to-[#FF0000] bg-clip-text text-transparent">Transfer Funds</h2>
         </div>
 
-        <form onSubmit={handleSubmit}>
-          <div className="mb-4">
-            <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
-              Amount to Transfer
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <DollarSign className="w-5 h-5 text-gray-400" />
+        <form onSubmit={handleSubmit} className="space-y-8">
+            {/* Account Information */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+              <div className="flex items-center gap-3 mb-2">
+                <DollarSign className="text-[#E60000]" />
+                <p className="text-gray-500 text-sm uppercase tracking-wider">Available Balance</p>
               </div>
-              <input
-                type="number"
-                id="amount"
-                value={amount}
-                onChange={handleAmountChange}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="0.00"
-                step="0.01"
-                min="0"
-                max={balance}
-              />
+              <p className="font-semibold text-lg">ETB {balance.toFixed(2)}</p>
+            </div>
+
+            <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+              <div className="flex items-center gap-3 mb-2">
+                <DollarSign className="text-[#E60000]" />
+                <p className="text-gray-500 text-sm uppercase tracking-wider">Account Number</p>
+              </div>
+              <p className="font-semibold text-lg">{accountNumber}</p>
             </div>
           </div>
 
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Amount in Words
-            </label>
-            <input
-              type="text"
-              value={amountInWords}
-              disabled
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 text-gray-700 cursor-not-allowed"
-              placeholder="Amount in words will appear here"
-            />
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Payment Narrative (Optional)
-            </label>
-            <textarea
-              value={paymentNarrative}
-              onChange={(e) => setPaymentNarrative(e.target.value)}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              placeholder="Enter payment details (optional)"
-              rows={3}
-            />
-          </div>
-
-          <div className="mb-4">
-            <label htmlFor="recipientAccount" className="block text-sm font-medium text-gray-700 mb-2">
-              Recipient Account Number
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <Building className="w-5 h-5 text-gray-400" />
+            {/* Transfer Details */}
+            <div className="space-y-6">
+              <div>
+                <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount to Transfer
+                </label>
+                <div className="relative">
+                  <input
+                    type="number"
+                    id="amount"
+                    value={amount}
+                    onChange={handleAmountChange}
+                    className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000] focus:border-transparent transition-all duration-200"
+                    placeholder="0.00"
+                    step="0.01"
+                    min="1"
+                    max={balance}
+                    disabled={loading}
+                  />
+                </div>
               </div>
-              <input
-                type="text"
-                id="recipientAccount"
-                value={recipientAccount}
-                onChange={handleAccountNumberChange}
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-white placeholder-gray-500 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Enter 16-digit account number"
-                maxLength={16}
-              />
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Amount in Words
+                </label>
+                <input
+                  type="text"
+                  value={amountInWords}
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                  disabled
+                  placeholder="Amount in words will appear here"
+                />
+              </div>
+
+              <div>
+                <label htmlFor="recipientAccount" className="block text-sm font-medium text-gray-700 mb-2">
+                  Recipient Account Number
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <Building className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    id="recipientAccount"
+                    value={recipientAccount}
+                    onChange={handleAccountNumberChange}
+                    className="w-full p-3 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000] focus:border-transparent transition-all duration-200"
+                    placeholder="Enter 16-digit account number"
+                    maxLength={16}
+                  />
+                </div>
+                {isVerifying && (
+                  <p className="text-sm text-[#FF6666] mt-1">Verifying account...</p>
+                )}
+              </div>
+
+              <div>
+                <label htmlFor="recipientName" className="block text-sm font-medium text-gray-700 mb-2">
+                  Recipient Name
+                </label>
+                <div className="relative">
+                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                    <User className="w-5 h-5 text-gray-400" />
+                  </div>
+                  <input
+                    type="text"
+                    id="recipientName"
+                    value={recipientName}
+                    readOnly
+                    className="w-full p-3 pl-10 border border-gray-300 rounded-lg bg-gray-50 cursor-not-allowed"
+                    placeholder="Recipient name will appear here"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Payment Narrative (Optional)
+                </label>
+                <textarea
+                  value={paymentNarrative}
+                  onChange={(e) => setPaymentNarrative(e.target.value)}
+                  className="w-full p-3 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000] focus:border-transparent transition-all duration-200"
+                  placeholder="Enter payment details (optional)"
+                  rows={3}
+                />
+              </div>
+
+              {amount && (
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
+                  <p className="text-sm text-gray-600">
+                    New balance after transfer: ETB {(balance - parseFloat(amount || '0')).toFixed(2)}
+                  </p>
+                </div>
+              )}
             </div>
-            {isVerifying && (
-              <p className="text-sm text-blue-500 mt-1">Verifying account...</p>
+
+            {/* Error Message */}
+            {error && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                className="p-4 rounded-xl bg-red-50 border border-red-200"
+              >
+                <p className="text-sm text-red-600">{error}</p>
+              </motion.div>
             )}
-          </div>
 
-          <div className="mb-4">
-            <label htmlFor="recipientName" className="block text-sm font-medium text-gray-700 mb-2">
-              Recipient Name
-            </label>
-            <div className="relative">
-              <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-                <User className="w-5 h-5 text-gray-400" />
-              </div>
-              <input
-                type="text"
-                id="recipientName"
-                value={recipientName}
-                readOnly
-                className="block w-full pl-10 pr-3 py-2 border border-gray-300 rounded-md leading-5 bg-gray-50 text-gray-700"
-                placeholder="Recipient name will appear here"
-              />
-            </div>
-          </div>
-
-          <div className="mb-4">
-            <label className="block text-sm font-medium text-gray-700 mb-2">
-              Available Balance
-            </label>
-            <p className="text-lg font-semibold">${balance.toFixed(2)}</p>
-          </div>
-
-          {error && (
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-red-500 mb-4"
+            {/* Submit Button */}
+            <button
+              type="submit"
+              className="w-full bg-gradient-to-r from-[#E60000] to-[#FF0000] text-white p-3 rounded-lg font-semibold hover:from-[#B30000] hover:to-[#FF4444] transition-all duration-300 transform hover:scale-105 disabled:opacity-70 disabled:cursor-not-allowed"
+              disabled={!isFormValid() || loading}
             >
-              {error}
-            </motion.p>
-          )}
-
-          <button
-            type="submit"
-            className={`w-full p-3 rounded-md text-lg font-medium transition-colors
-              ${!isFormValid() 
-                ? 'bg-gray-400 cursor-not-allowed' 
-                : 'bg-purple-500 hover:bg-purple-600 text-white'}`}
-            disabled={!isFormValid()}
-          >
-            Transfer
-          </button>
-        </form>
+              {loading ? 'Processing...' : 'Transfer'}
+            </button>
+          </form>
       </motion.div>
 
       <AnimatePresence>
@@ -504,14 +577,6 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
             additionalInfo={`to ${recipientName} (${recipientAccount})`}
           />
         )}
-        {showSuccessModal && (
-          <SuccessModal
-            amount={amount}
-            onClose={handleSuccessClose}
-            type="transfer"
-            customerNumber={transactionNumber}
-          />
-        )}
         {showVerificationModal && (
           <SignatureVerificationModal
             amount={amount}
@@ -522,6 +587,22 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
             storedSignature={storedSignature}
             drawnSignature={drawnSignature}
             additionalInfo={`to ${recipientName} (${recipientAccount})`}
+          />
+        )}
+        {showBranchServiceModal && (
+          <BranchServiceModal
+            branchCode={localStorage.getItem('branchCode') || ''}
+            onConfirm={handleBranchServiceConfirm}
+            onDecline={handleBranchServiceDecline}
+          />
+        )}
+        {showSuccessModal && (
+          <SuccessModal
+            amount={amount}
+            onClose={handleSuccessClose}
+            type="transfer"
+            customerNumber={transactionNumber}
+            assignedTo={assignedTeller}
           />
         )}
       </AnimatePresence>
