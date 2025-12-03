@@ -20,6 +20,7 @@ import LoadingSpinner from '@/components/LoadingSpinner';
 import { AccountData, UserData, Transaction } from '@/types/account';
 import UserDashboard from '@/components/UserDashboard';
 import FaceVerificationModal from '@/components/FaceVerificationModal';
+import FingerprintVerificationModal from '@/components/FingerprintVerificationModal';
 import MiniStatement from '@/components/MiniStatement';
 import Dashboard from '@/components/Dashboard';
 import SetATMPasswordComponent from '@/components/SetATMPasswordComponent';
@@ -154,6 +155,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showProductsShowcase, setShowProductsShowcase] = useState(false);
   const [showFaceVerification, setShowFaceVerification] = useState(false);
+  const [showFingerprintVerification, setShowFingerprintVerification] = useState(false);
   const [pendingAccountData, setPendingAccountData] = useState<AccountData | null>(null);
   const [showMainDashboard, setShowMainDashboard] = useState(false);
   const [showTransactionMap, setShowTransactionMap] = useState(false);
@@ -503,6 +505,53 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const handleFaceVerificationClose = () => {
     setShowFaceVerification(false);
     setPendingAccountData(null);
+  };
+
+  // Handler for fingerprint authentication success
+  const handleFingerprintSuccess = async (selectedAccountNumber: string, customerName: string) => {
+    setShowFingerprintVerification(false);
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Verify the account to get full account data
+      const response = await fetch('/api/account/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ accountNumber: selectedAccountNumber }),
+      });
+
+      const result = await response.json();
+
+      if (result.success && result.data) {
+        // Fetch transactions for the account
+        const transactionsResponse = await fetch(`/api/transactions?accountNumber=${selectedAccountNumber}`);
+        const transactionsResult = await transactionsResponse.json();
+
+        const accountDataWithTransactions = {
+          ...result.data,
+          transactions: transactionsResult.data || []
+        };
+
+        // Set account data and go directly to dashboard (skip face verification)
+        setAccountData(accountDataWithTransactions);
+        setShowDashboard(true);
+        setShowInput(false);
+      } else {
+        setError(result.message || 'Failed to verify account');
+      }
+    } catch (err) {
+      setError('An error occurred during fingerprint login');
+      console.error('Fingerprint login error:', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFingerprintClose = () => {
+    setShowFingerprintVerification(false);
   };
 
   const isValidReference = /^\d{6}$/.test(uniqueReference);
@@ -1494,12 +1543,22 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   type="button"
                   onClick={() => setSearchType('phone')}
                   className={`px-4 py-2 rounded ${
-                    searchType === 'phone' 
-                      ? 'bg-[#E60000] text-white' 
+                    searchType === 'phone'
+                      ? 'bg-[#E60000] text-white'
                       : 'bg-gray-200 text-gray-700'
                   }`}
                 >
                   First Name & Phone
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setShowFingerprintVerification(true)}
+                  className="px-4 py-2 rounded bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-2"
+                >
+                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
+                  </svg>
+                  Fingerprint
                 </button>
               </div>
             </div>
@@ -2316,6 +2375,12 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
             onClose={handleFaceVerificationClose}
             onSuccess={handleFaceVerificationSuccess}
             profileImage={pendingAccountData.PROFILE_IMAGE || "/profile/default-profile.jpg"}
+          />
+        )}
+        {showFingerprintVerification && (
+          <FingerprintVerificationModal
+            onClose={handleFingerprintClose}
+            onSuccess={handleFingerprintSuccess}
           />
         )}
       </main>
