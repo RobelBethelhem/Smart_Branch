@@ -33,20 +33,53 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
   const [serviceConnected, setServiceConnected] = useState(false);
   const [scannerConnected, setScannerConnected] = useState(false);
   const [customerName, setCustomerName] = useState('');
+  const [isCapturing, setIsCapturing] = useState(false);
   const wsRef = useRef<WebSocket | null>(null);
+  const isConnectingRef = useRef(false);
+
+  const disconnectService = useCallback(() => {
+    if (wsRef.current) {
+      wsRef.current.onclose = null; // Prevent reconnection attempts
+      wsRef.current.onerror = null;
+      wsRef.current.onmessage = null;
+      wsRef.current.onopen = null;
+      if (wsRef.current.readyState === WebSocket.OPEN || wsRef.current.readyState === WebSocket.CONNECTING) {
+        wsRef.current.close();
+      }
+      wsRef.current = null;
+    }
+    setServiceConnected(false);
+    setScannerConnected(false);
+    setIsCapturing(false);
+    isConnectingRef.current = false;
+  }, []);
 
   const connectToService = useCallback(() => {
-    try {
-      wsRef.current = new WebSocket(FINGERPRINT_SERVICE_URL);
+    // Prevent multiple simultaneous connection attempts
+    if (isConnectingRef.current || (wsRef.current && wsRef.current.readyState === WebSocket.OPEN)) {
+      return;
+    }
 
-      wsRef.current.onopen = () => {
+    // Clean up existing connection first
+    disconnectService();
+
+    isConnectingRef.current = true;
+    setStatus('connecting');
+    setMessage('Connecting to fingerprint scanner...');
+
+    try {
+      const ws = new WebSocket(FINGERPRINT_SERVICE_URL);
+      wsRef.current = ws;
+
+      ws.onopen = () => {
         console.log('Connected to fingerprint service');
+        isConnectingRef.current = false;
         setServiceConnected(true);
         setMessage('Checking scanner status...');
-        wsRef.current?.send(JSON.stringify({ action: 'check' }));
+        ws.send(JSON.stringify({ action: 'check' }));
       };
 
-      wsRef.current.onmessage = async (event) => {
+      ws.onmessage = async (event) => {
         try {
           const data = JSON.parse(event.data);
           console.log('Fingerprint service message:', data);
@@ -56,41 +89,44 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
               setScannerConnected(data.connected);
               if (data.connected) {
                 setStatus('ready');
-                setMessage('Place your finger on the scanner');
-                // Auto-start capture
-                setTimeout(() => {
-                  if (wsRef.current?.readyState === WebSocket.OPEN) {
-                    setStatus('scanning');
-                    setMessage('Scanning fingerprint... Please keep your finger steady');
-                    wsRef.current.send(JSON.stringify({ action: 'capture' }));
-                  }
-                }, 1000);
+                setMessage('Scanner ready. Place your finger and click "Scan Fingerprint"');
+                setIsCapturing(false);
               } else {
                 setStatus('error');
-                setMessage('Scanner not detected. Please connect ZK9500 scanner.');
+                setMessage('Scanner not detected. Please connect ZK9500 scanner and try again.');
+                setIsCapturing(false);
               }
               break;
 
             case 'capturing':
               setStatus('scanning');
-              setMessage(data.message || 'Scanning fingerprint...');
+              setIsCapturing(true);
+              setMessage(data.message || 'Place your finger on the scanner...');
               break;
 
             case 'captured':
+              setIsCapturing(false);
               if (data.success && data.template) {
                 setStatus('verifying');
-                setMessage('Verifying fingerprint...');
+                setMessage('Fingerprint captured! Verifying...');
                 // Send to backend for authentication
                 await authenticateFingerprint(data.template);
               } else {
-                setStatus('error');
-                setMessage(data.message || 'Failed to capture fingerprint. Please try again.');
+                setStatus('ready');
+                setMessage(data.message || 'Capture failed. Place your finger and try again.');
               }
               break;
 
             case 'error':
-              setStatus('error');
-              setMessage(data.message || 'An error occurred');
+              setIsCapturing(false);
+              // If it's "already in progress", just wait
+              if (data.message && data.message.includes('already in progress')) {
+                // Don't change status, just wait
+                console.log('Capture in progress, waiting...');
+              } else {
+                setStatus('ready');
+                setMessage(data.message || 'An error occurred. Please try again.');
+              }
               break;
           }
         } catch (error) {
@@ -98,21 +134,47 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
         }
       };
 
-      wsRef.current.onclose = () => {
+      ws.onclose = () => {
         console.log('Disconnected from fingerprint service');
+        isConnectingRef.current = false;
         setServiceConnected(false);
         setScannerConnected(false);
+        setIsCapturing(false);
       };
 
-      wsRef.current.onerror = () => {
+      ws.onerror = (error) => {
+        console.error('WebSocket error:', error);
+        isConnectingRef.current = false;
         setStatus('error');
         setMessage('Failed to connect to fingerprint service. Make sure the service is running.');
+        setIsCapturing(false);
       };
     } catch (error) {
+      console.error('Connection error:', error);
+      isConnectingRef.current = false;
       setStatus('error');
       setMessage('Failed to connect to fingerprint service');
+      setIsCapturing(false);
     }
-  }, []);
+  }, [disconnectService]);
+
+  const startCapture = useCallback(() => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      setMessage('Not connected. Please wait...');
+      connectToService();
+      return;
+    }
+
+    if (isCapturing) {
+      console.log('Capture already in progress');
+      return;
+    }
+
+    setIsCapturing(true);
+    setStatus('scanning');
+    setMessage('Place your finger on the scanner...');
+    wsRef.current.send(JSON.stringify({ action: 'capture' }));
+  }, [isCapturing, connectToService]);
 
   const authenticateFingerprint = async (template: string) => {
     try {
@@ -145,34 +207,37 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
           setMessage('No accounts found for this customer.');
         }
       } else {
-        setStatus('error');
-        setMessage(result.message || 'Fingerprint not recognized. Please try again or use another method.');
+        setStatus('ready');
+        setMessage(result.message || 'Fingerprint not recognized. Please try again.');
       }
     } catch (error) {
       console.error('Authentication error:', error);
-      setStatus('error');
+      setStatus('ready');
       setMessage('Authentication failed. Please try again.');
     }
   };
 
-  const handleRetry = () => {
+  const handleRetry = useCallback(() => {
     setStatus('connecting');
     setMessage('Reconnecting...');
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-    setTimeout(connectToService, 500);
-  };
+    setIsCapturing(false);
+
+    // Fully disconnect and reconnect
+    disconnectService();
+
+    // Wait a moment before reconnecting
+    setTimeout(() => {
+      connectToService();
+    }, 500);
+  }, [disconnectService, connectToService]);
 
   useEffect(() => {
     connectToService();
 
     return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
+      disconnectService();
     };
-  }, [connectToService]);
+  }, [connectToService, disconnectService]);
 
   const getStatusIcon = () => {
     switch (status) {
@@ -180,14 +245,14 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
         return <FiCheck className="text-6xl text-green-500" />;
       case 'error':
         return <FiAlertCircle className="text-6xl text-red-500" />;
-      default:
+      case 'scanning':
         return (
           <motion.div
-            animate={{ scale: [1, 1.2, 1] }}
-            transition={{ repeat: Infinity, duration: 1.5 }}
+            animate={{ scale: [1, 1.1, 1] }}
+            transition={{ repeat: Infinity, duration: 1 }}
           >
             <svg
-              className="w-24 h-24 text-[#E60000]"
+              className="w-24 h-24 text-blue-500"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
@@ -198,6 +263,33 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
                 strokeLinejoin="round"
                 d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33"
               />
+            </svg>
+          </motion.div>
+        );
+      case 'ready':
+        return (
+          <svg
+            className="w-24 h-24 text-[#E60000]"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="1.5"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33"
+            />
+          </svg>
+        );
+      default:
+        return (
+          <motion.div
+            animate={{ rotate: 360 }}
+            transition={{ repeat: Infinity, duration: 2, ease: "linear" }}
+          >
+            <svg className="w-24 h-24 text-gray-400" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
             </svg>
           </motion.div>
         );
@@ -212,6 +304,8 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
         return 'from-red-500 to-red-600';
       case 'scanning':
         return 'from-blue-500 to-blue-600';
+      case 'verifying':
+        return 'from-purple-500 to-purple-600';
       default:
         return 'from-[#E60000] to-[#FF4444]';
     }
@@ -256,6 +350,8 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
                   ? 'bg-green-50'
                   : status === 'error'
                   ? 'bg-red-50'
+                  : status === 'verifying'
+                  ? 'bg-purple-50'
                   : 'bg-gray-50'
               }`}
               animate={status === 'scanning' ? {
@@ -276,6 +372,10 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
                   ? 'text-green-600'
                   : status === 'error'
                   ? 'text-red-600'
+                  : status === 'scanning'
+                  ? 'text-blue-600'
+                  : status === 'verifying'
+                  ? 'text-purple-600'
                   : 'text-gray-700'
               }`}
             >
@@ -287,10 +387,10 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
               <div className="w-full max-w-xs mb-6">
                 <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
                   <motion.div
-                    className="h-full bg-gradient-to-r from-[#E60000] to-[#FF6666]"
+                    className={`h-full ${status === 'verifying' ? 'bg-gradient-to-r from-purple-500 to-purple-600' : 'bg-gradient-to-r from-[#E60000] to-[#FF6666]'}`}
                     initial={{ width: '0%' }}
                     animate={{ width: '100%' }}
-                    transition={{ duration: 3, repeat: Infinity }}
+                    transition={{ duration: status === 'scanning' ? 15 : 3, repeat: status === 'connecting' ? Infinity : 0 }}
                   />
                 </div>
               </div>
@@ -310,6 +410,29 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
 
             {/* Action Buttons */}
             <div className="flex gap-4 w-full">
+              {/* Ready state - show Scan button */}
+              {status === 'ready' && scannerConnected && (
+                <>
+                  <button
+                    onClick={startCapture}
+                    disabled={isCapturing}
+                    className="flex-1 py-3 px-6 bg-gradient-to-r from-[#E60000] to-[#FF4444] text-white rounded-lg font-semibold hover:from-[#CC0000] hover:to-[#E60000] transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                  >
+                    <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
+                    </svg>
+                    Scan Fingerprint
+                  </button>
+                  <button
+                    onClick={onClose}
+                    className="flex-1 py-3 px-6 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all"
+                  >
+                    Cancel
+                  </button>
+                </>
+              )}
+
+              {/* Error state - show retry and cancel */}
               {status === 'error' && (
                 <>
                   <button
@@ -327,7 +450,8 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
                 </>
               )}
 
-              {(status === 'connecting' || status === 'ready') && (
+              {/* Connecting or scanning - show cancel only */}
+              {(status === 'connecting' || status === 'scanning' || status === 'verifying') && (
                 <button
                   onClick={onClose}
                   className="w-full py-3 px-6 bg-gray-200 text-gray-700 rounded-lg font-semibold hover:bg-gray-300 transition-all"
@@ -339,11 +463,11 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
           </div>
 
           {/* Service Status Footer */}
-          {!serviceConnected && status !== 'success' && (
+          {!serviceConnected && status !== 'success' && status !== 'connecting' && (
             <div className="bg-yellow-50 border-t border-yellow-200 p-4">
               <p className="text-yellow-800 text-sm text-center">
                 <strong>Fingerprint service not running.</strong><br />
-                Please ensure the fingerprint scanner service is started.
+                Start the service with: <code className="bg-yellow-100 px-1 rounded">npm start</code> in fingerprint folder
               </p>
             </div>
           )}
