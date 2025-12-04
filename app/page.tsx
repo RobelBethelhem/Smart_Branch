@@ -1442,10 +1442,10 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       return <BranchSelection onSelect={handleBranchSelect} />;
     }
 
-    if (!showInput && !showProductsShowcase) {
+    if (!showInput && !showProductsShowcase && !showDashboard) {
       return (
         <div className="relative flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-[#E60000] to-[#FF0000]">
-          <motion.h1 
+          <motion.h1
             initial={{ opacity: 0, y: -50 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
