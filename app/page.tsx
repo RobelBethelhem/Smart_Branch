@@ -261,6 +261,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setShowOnboarding(false);
     setShowProductsShowcase(false);
     setSelectedOption(null);
+    setAccountData(null);  // Clear account data to return to welcome screen
     setLastActivity(Date.now());
   }, []);
 
@@ -509,7 +510,15 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
   // Handler for fingerprint authentication success
   const handleFingerprintSuccess = async (selectedAccountNumber: string, customerName: string) => {
+    // Close modal and reset view states first
     setShowFingerprintVerification(false);
+    setShowInput(false);
+    setShowProductsShowcase(false);
+    setShowOnboarding(false);
+    setShowEditForm(false);
+    setShowBankFloorLayout(false);
+    setSelectedOption(null);
+
     setLoading(true);
     setError(null);
 
@@ -535,16 +544,17 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           transactions: transactionsResult.data || []
         };
 
-        // Set account data and go directly to dashboard (skip face verification)
+        // Set account data first - this will trigger dashboard to show
+        // (dashboard condition only requires accountData, not showDashboard)
         setAccountData(accountDataWithTransactions);
         setShowDashboard(true);
-        setShowInput(false);
+        setLastActivity(Date.now());
       } else {
         setError(result.message || 'Failed to verify account');
       }
     } catch (err) {
-      setError('An error occurred during fingerprint login');
       console.error('Fingerprint login error:', err);
+      setError('An error occurred during fingerprint login');
     } finally {
       setLoading(false);
     }
@@ -1442,7 +1452,10 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       return <BranchSelection onSelect={handleBranchSelect} />;
     }
 
-    if (!showInput && !showProductsShowcase && !showDashboard) {
+    // Show welcome screen only if no view is active AND no account data exists
+    // The !accountData check prevents timing issues with React state batching
+    // during fingerprint authentication (where accountData is set before showDashboard updates)
+    if (!showInput && !showProductsShowcase && !showDashboard && !accountData) {
       return (
         <div className="relative flex flex-col items-center justify-center min-h-screen bg-gradient-to-br from-[#E60000] to-[#FF0000]">
           <motion.h1
@@ -1919,11 +1932,13 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       );
     }
 
-    else if (showDashboard && accountData) {
+    // Show dashboard when we have account data - don't require showDashboard state
+    // This handles React state batching issues during fingerprint authentication
+    else if (accountData) {
       return (
         <div className="w-full">
 
-   
+
 
 <div className="absolute top-4 right-4 z-50">
     <motion.button
@@ -1932,6 +1947,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       whileTap={{ scale: 0.95 }}
       onClick={() => {
         setShowDashboard(false);
+        setAccountData(null);  // Clear account data on logout
       }}
       >
       <FiLogOut className="text-xl" />
