@@ -365,7 +365,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
             onClose={() => setShowSignatureModal(false)}
             onConfirm={handleSignatureDraw}
             type="withdrawal"
-            additionalInfo={`New balance will be $${(balance - parseFloat(amount)).toFixed(2)}`}
+            additionalInfo={`New balance will be ETB ${(balance - parseFloat(amount)).toFixed(2)}`}
           />
         )}
 
@@ -378,7 +378,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
             type="withdrawal"
             storedSignature={formatSignatureUrl(storedSignature)}
             drawnSignature={drawnSignature}
-            additionalInfo={`New balance will be $${(balance - parseFloat(amount)).toFixed(2)}`}
+            additionalInfo={`New balance will be ETB ${(balance - parseFloat(amount)).toFixed(2)}`}
           />
         )}
 

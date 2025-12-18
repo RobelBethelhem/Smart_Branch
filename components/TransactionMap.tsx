@@ -171,12 +171,12 @@ const TransactionMap: React.FC<TransactionMapProps> = ({ transactions, onBack })
             </div>
             <div>
               <p className="text-gray-600">Total Amount:</p>
-              <p className="font-medium">${locationStats.totalAmount.toFixed(2)}</p>
+              <p className="font-medium">ETB {locationStats.totalAmount.toFixed(2)}</p>
             </div>
             <div>
               <p className="text-gray-600">Amount Range:</p>
               <p className="font-medium">
-                ${locationStats.minAmount.toFixed(2)} - ${locationStats.maxAmount.toFixed(2)}
+                ETB {locationStats.minAmount.toFixed(2)} - ETB {locationStats.maxAmount.toFixed(2)}
               </p>
             </div>
             <div>
@@ -281,7 +281,7 @@ const TransactionMap: React.FC<TransactionMapProps> = ({ transactions, onBack })
             >
               <div className="flex justify-between items-center">
                 <span className="font-medium">
-                  ${transaction.amount.toFixed(2)}
+                  ETB {transaction.amount.toFixed(2)}
                 </span>
                 <span className="text-sm text-gray-500">
                   {new Date(transaction.date).toLocaleDateString()}
@@ -458,7 +458,7 @@ const TransactionMap: React.FC<TransactionMapProps> = ({ transactions, onBack })
           <h3 className="font-bold text-lg mb-2">Statistics</h3>
           <div className="space-y-2 text-sm">
             <p>Total Transactions: {stats.totalTransactions}</p>
-            <p>Amount Range: ${stats.minAmount.toFixed(2)} - ${stats.maxAmount.toFixed(2)}</p>
+            <p>Amount Range: ETB {stats.minAmount.toFixed(2)} - ETB {stats.maxAmount.toFixed(2)}</p>
             <div>
               <p className="font-medium mb-1">Location Frequency:</p>
               {Object.entries(stats.locationFrequency)
@@ -524,7 +524,7 @@ const TransactionMap: React.FC<TransactionMapProps> = ({ transactions, onBack })
             <span className="font-semibold">Location:</span> {selectedTransaction.location.name}
           </p>
           <p className="mb-1">
-            <span className="font-semibold">Amount:</span> ${selectedTransaction.amount.toFixed(2)}
+            <span className="font-semibold">Amount:</span> ETB {selectedTransaction.amount.toFixed(2)}
           </p>
           <p>
             <span className="font-semibold">Date:</span> {selectedTransaction.date}

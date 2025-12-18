@@ -96,7 +96,7 @@ const SignatureModal: React.FC<SignatureModalProps> = ({
 
         <div className="bg-gray-50 p-4 rounded-lg mb-4">
           <p className="text-sm text-gray-600">Amount:</p>
-          <p className="text-lg font-bold">${amount}</p>
+          <p className="text-lg font-bold">ETB {amount}</p>
           {additionalInfo && (
             <p className="text-sm text-gray-600 mt-1">{additionalInfo}</p>
           )}

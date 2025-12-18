@@ -91,7 +91,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
       setAmount(value);
       setError('');
     } else if (numValue > 1000000) {
-      setError('Maximum deposit amount is $1,000,000');
+      setError('Maximum deposit amount is ETB 1,000,000');
     } else {
       setError('Amount must be greater than 0');
     }
@@ -111,7 +111,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
       return false;
     }
     if (depositAmount > 1000000) {
-      setError('Maximum deposit amount is $1,000,000');
+      setError('Maximum deposit amount is ETB 1,000,000');
       return false;
     }
     return true;
@@ -389,7 +389,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
             onClose={() => setShowSignatureModal(false)}
             onConfirm={handleSignatureDraw}
             type="deposit"
-            additionalInfo={`New balance will be $${(balance + parseFloat(amount)).toFixed(2)}`}
+            additionalInfo={`New balance will be ETB ${(balance + parseFloat(amount)).toFixed(2)}`}
           />
         )}
 
@@ -402,7 +402,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
             type="deposit"
             storedSignature={storedSignature}
             drawnSignature={drawnSignature}
-            additionalInfo={`New balance will be $${(balance + parseFloat(amount)).toFixed(2)}`}
+            additionalInfo={`New balance will be ETB ${(balance + parseFloat(amount)).toFixed(2)}`}
           />
         )}
 

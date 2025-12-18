@@ -679,7 +679,7 @@ const SignatureVerificationModal: React.FC<SignatureModalProps> = ({
             )}
 
             <div className="mt-4 text-sm text-gray-600">
-              <p>Verifying {type} of ${amount}</p>
+              <p>Verifying {type} of ETB {amount}</p>
               {additionalInfo && <p className="mt-1">{additionalInfo}</p>}
             </div>
 

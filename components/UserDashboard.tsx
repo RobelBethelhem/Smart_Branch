@@ -87,7 +87,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onOptionClick, balance, n
                 <h1 className="text-1xl font-bold text-gray-800">Welcome, {name}</h1>
                 <div className="text-right">
                   <p className="text-sm text-gray-600">Available Balance</p>
-                  <p className="text-2xl font-bold text-green-600">${balance.toFixed(2)}</p>
+                  <p className="text-2xl font-bold text-green-600">ETB {balance.toFixed(2)}</p>
                 </div>
               </div>
               

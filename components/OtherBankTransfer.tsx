@@ -331,7 +331,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferProps> = ({
           <label className="block text-sm font-medium text-gray-700 mb-2">
             Available Balance
           </label>
-          <p className="text-lg font-semibold">${balance.toFixed(2)}</p>
+          <p className="text-lg font-semibold">ETB {balance.toFixed(2)}</p>
         </div>
 
         {error && (
