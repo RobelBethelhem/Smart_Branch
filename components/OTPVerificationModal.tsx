@@ -103,7 +103,7 @@ const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
     setError('');
 
     try {
-      const response = await fetch('/api/zsmart_branch_requests/verify-otp', {
+      const response = await fetch('http://localhost:5000/api/zsmart_branch_requests/verify-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -137,7 +137,7 @@ const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
     setError('');
 
     try {
-      const response = await fetch('/api/zsmart_branch_requests/generate-otp', {
+      const response = await fetch('http://localhost:5000/api/zsmart_branch_requests/generate-otp', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
