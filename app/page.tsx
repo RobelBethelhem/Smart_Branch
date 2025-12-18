@@ -26,6 +26,7 @@ import AuthMethodSelectionModal from '@/components/AuthMethodSelectionModal';
 import OTPVerificationModal from '@/components/OTPVerificationModal';
 import MiniStatement from '@/components/MiniStatement';
 import FaydaDataModal from '@/components/FaydaDataModal';
+import FaydaPDFUpload from '@/components/FaydaPDFUpload';
 import Dashboard from '@/components/Dashboard';
 import SetATMPasswordComponent from '@/components/SetATMPasswordComponent';
 import { QrCode } from 'lucide-react';
@@ -172,6 +173,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [formData, setFormData] = useState<Transactions | null>(null);
   const [showFaydaModal, setShowFaydaModal] = useState(false);
   const [faydaData, setFaydaData] = useState<any>(null);
+  const [showFaydaPDFUpload, setShowFaydaPDFUpload] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>, transaction: Transactions) => {
     const { name, value } = e.target;
@@ -403,6 +405,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       window.removeEventListener('message', handleExtensionMessage);
     };
   }, []);
+
 
 
 
@@ -2059,7 +2062,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
               onClick={() => window.open('https://bankpc.fayda.et/download-pdf', '_blank')}
               className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white p-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-105 mt-4"
             >
-              Import from Fayda
+              📄 Import from Fayda
             </button>
           </motion.form>
           {error && <ErrorMessage message={error} onClose={() => setError(null)} />}
@@ -2676,6 +2679,17 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
             onSuccess={handleOTPSuccess}
             accountNumber={selectedAccountForAuth.accountNumber}
             maskedPhone={otpMaskedPhone}
+          />
+        )}
+        {showFaydaPDFUpload && (
+          <FaydaPDFUpload
+            onDataExtracted={(data) => {
+              console.log('PDF data extracted:', data);
+              setFaydaData(data);
+              setShowFaydaPDFUpload(false);
+              setShowFaydaModal(true);
+            }}
+            onClose={() => setShowFaydaPDFUpload(false)}
           />
         )}
         <FaydaDataModal
