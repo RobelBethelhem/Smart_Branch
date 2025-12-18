@@ -122,11 +122,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onOptionClick, balance, n
                     onClick={() => handleOptionClick('deposit')}
                   />
                 )}
-                <DashboardOption
-                  icon={<RefreshCcw className="w-8 h-8 text-purple-500" />}
-                  label="Transfer"
-                  onClick={() => handleOptionClick('transfer')}
-                />
+                {/* Hide Transfer if NO_DEBIT is restricted */}
+                {noDebit !== 'Y' && (
+                  <DashboardOption
+                    icon={<RefreshCcw className="w-8 h-8 text-purple-500" />}
+                    label="Transfer"
+                    onClick={() => handleOptionClick('transfer')}
+                  />
+                )}
                 <DashboardOption
                   icon={<Info className="w-8 h-8 text-orange-500" />}
                   label="Foreign Exchange"
@@ -137,11 +140,14 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onOptionClick, balance, n
                   label="Drop Comment"
                   onClick={() => handleOptionClick('comment')}
                 />
-                <DashboardOption
-                  icon={<CreditCard className="w-8 h-8 text-blue-600" />}
-                  label="Other Bank Transfer"
-                  onClick={() => handleOptionClick('other-bank-transfer')}
-                />
+                {/* Hide Other Bank Transfer if NO_DEBIT is restricted */}
+                {noDebit !== 'Y' && (
+                  <DashboardOption
+                    icon={<CreditCard className="w-8 h-8 text-blue-600" />}
+                    label="Other Bank Transfer"
+                    onClick={() => handleOptionClick('other-bank-transfer')}
+                  />
+                )}
                 {/* Hide E-Check if NO_DEBIT is restricted */}
                 {noDebit !== 'Y' && (
                   <DashboardOption

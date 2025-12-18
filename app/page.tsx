@@ -2467,17 +2467,20 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </motion.div>
               )}
 
-              <motion.div
-                className="bg-violet-500 rounded-lg overflow-hidden cursor-pointer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleOptionClick('transfer')}
-              >
-                <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
-                  <FiSend className="text-3xl sm:text-4xl mb-2" />
-                  <span className="text-base sm:text-lg font-semibold text-center">Transfer</span>
-                </div>
-              </motion.div>
+              {/* Hide Transfer if NO_DEBIT is restricted */}
+              {accountData.NO_DEBIT !== 'Y' && (
+                <motion.div
+                  className="bg-violet-500 rounded-lg overflow-hidden cursor-pointer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleOptionClick('transfer')}
+                >
+                  <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
+                    <FiSend className="text-3xl sm:text-4xl mb-2" />
+                    <span className="text-base sm:text-lg font-semibold text-center">Transfer</span>
+                  </div>
+                </motion.div>
+              )}
 
               <motion.div
                 className="bg-amber-500 rounded-lg overflow-hidden cursor-pointer"
@@ -2503,17 +2506,20 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </div>
               </motion.div>
 
-              <motion.div
-                className="bg-cyan-600 rounded-lg overflow-hidden cursor-pointer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleOptionClick('other-bank-transfer')}
-              >
-                <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
-                  <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
-                  <span className="text-base sm:text-lg font-semibold text-center">Other Bank Transfer</span>
-                </div>
-              </motion.div>
+              {/* Hide Other Bank Transfer if NO_DEBIT is restricted */}
+              {accountData.NO_DEBIT !== 'Y' && (
+                <motion.div
+                  className="bg-cyan-600 rounded-lg overflow-hidden cursor-pointer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleOptionClick('other-bank-transfer')}
+                >
+                  <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
+                    <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
+                    <span className="text-base sm:text-lg font-semibold text-center">Other Bank Transfer</span>
+                  </div>
+                </motion.div>
+              )}
 
               {/* Hide E-Check if NO_DEBIT is restricted */}
               {accountData.NO_DEBIT !== 'Y' && (
@@ -2556,17 +2562,20 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
             </motion.div> */}
 
 
-              <motion.div
-                className="bg-teal-500 rounded-lg overflow-hidden cursor-pointer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleOptionClick('other-bank-transfer')}
-              >
-                <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
-                  <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
-                  <span className="text-base sm:text-lg font-semibold text-center">ATM Card Request</span>
-                </div>
-              </motion.div>
+              {/* Hide ATM Card Request if NO_DEBIT is restricted */}
+              {accountData.NO_DEBIT !== 'Y' && (
+                <motion.div
+                  className="bg-teal-500 rounded-lg overflow-hidden cursor-pointer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleOptionClick('other-bank-transfer')}
+                >
+                  <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
+                    <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
+                    <span className="text-base sm:text-lg font-semibold text-center">ATM Card Request</span>
+                  </div>
+                </motion.div>
+              )}
 
               {/* <motion.div
                 className="bg-fuchsia-500 rounded-lg overflow-hidden cursor-pointer"
@@ -2616,23 +2625,26 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </div>
               </motion.div> */}
 
-              <motion.div
-                className="bg-purple-500 rounded-lg overflow-hidden cursor-pointer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => {
-                  setShowTransactionMap(true);
-                  setShowDashboard(false);
-                  console.log('Showing transaction map');
-                }}
-              >
-                <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
-                  <FiGlobe className="text-3xl sm:text-4xl mb-2" />
-                  <span className="text-base sm:text-lg font-semibold text-center">
-                    View Transaction Map
-                  </span>
-                </div>
-              </motion.div>
+              {/* Hide View Transaction Map if NO_DEBIT is restricted */}
+              {accountData.NO_DEBIT !== 'Y' && (
+                <motion.div
+                  className="bg-purple-500 rounded-lg overflow-hidden cursor-pointer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => {
+                    setShowTransactionMap(true);
+                    setShowDashboard(false);
+                    console.log('Showing transaction map');
+                  }}
+                >
+                  <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
+                    <FiGlobe className="text-3xl sm:text-4xl mb-2" />
+                    <span className="text-base sm:text-lg font-semibold text-center">
+                      View Transaction Map
+                    </span>
+                  </div>
+                </motion.div>
+              )}
             </div>
           </motion.div>
         </div>
