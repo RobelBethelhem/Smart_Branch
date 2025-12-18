@@ -153,7 +153,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
     }
   };
 
-  const handleVerificationSuccess = async () => {
+  const handleVerificationSuccess = async (signature: string) => {
     try {
       setShowVerificationModal(false);
       setShowBranchServiceModal(true);
@@ -425,9 +425,11 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
       <AnimatePresence>
         {showSignatureModal && (
           <SignatureModal
-            isOpen={showSignatureModal}
+            amount={amount}
             onClose={() => setShowSignatureModal(false)}
-            onSignatureComplete={handleSignatureDraw}
+            onConfirm={handleSignatureDraw}
+            type="otherBankTransfer"
+            additionalInfo={`Recipient: ${recipientFullName} (${recipientPhoneNumber})`}
           />
         )}
       </AnimatePresence>
@@ -435,12 +437,14 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
       <AnimatePresence>
         {showVerificationModal && (
           <SignatureVerificationModal
-            isOpen={showVerificationModal}
+            amount={amount}
             onClose={() => setShowVerificationModal(false)}
-            drawnSignature={drawnSignature}
-            storedSignature={formatSignatureUrl(storedSignature)}
-            onSuccess={handleVerificationSuccess}
+            onConfirm={handleVerificationSuccess}
             onError={handleVerificationError}
+            type="otherBankTransfer"
+            storedSignature={formatSignatureUrl(storedSignature)}
+            drawnSignature={drawnSignature}
+            additionalInfo={`Recipient: ${recipientFullName} (${recipientPhoneNumber})`}
           />
         )}
       </AnimatePresence>
@@ -448,8 +452,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
       <AnimatePresence>
         {showBranchServiceModal && (
           <BranchServiceModal
-            isOpen={showBranchServiceModal}
-            onClose={() => setShowBranchServiceModal(false)}
+            branchCode={localStorage.getItem('branchCode') || ''}
             onConfirm={handleBranchServiceConfirm}
             onDecline={handleBranchServiceDecline}
           />
@@ -459,12 +462,11 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
       <AnimatePresence>
         {showSuccessModal && (
           <SuccessModal
-            isOpen={showSuccessModal}
+            amount={amount}
             onClose={handleSuccessClose}
-            message={`E-Check request submitted successfully! Reference: ${referenceNumber}. Please come with the recipient (${recipientFullName}) to collect cash.`}
-            transactionType="E-Check Request"
-            amount={parseFloat(amount)}
-            assignedTeller={assignedTeller}
+            type="otherBankTransfer"
+            customerNumber={referenceNumber}
+            assignedTo={assignedTeller}
           />
         )}
       </AnimatePresence>
