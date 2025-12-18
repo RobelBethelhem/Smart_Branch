@@ -22,6 +22,8 @@ import { AccountData, UserData, Transaction } from '@/types/account';
 import UserDashboard from '@/components/UserDashboard';
 import FaceVerificationModal from '@/components/FaceVerificationModal';
 import FingerprintVerificationModal from '@/components/FingerprintVerificationModal';
+import AuthMethodSelectionModal from '@/components/AuthMethodSelectionModal';
+import OTPVerificationModal from '@/components/OTPVerificationModal';
 import MiniStatement from '@/components/MiniStatement';
 import Dashboard from '@/components/Dashboard';
 import SetATMPasswordComponent from '@/components/SetATMPasswordComponent';
@@ -136,7 +138,7 @@ const [userAccounts, setUserAccounts] = useState<AccountData[]>([]);
 
 
 
-const [searchType, setSearchType] = useState<'account' | 'name' | 'phone'>('account');
+const [searchType, setSearchType] = useState<'account' | 'name' | 'phone' | 'combined'>('account');
 const [firstName, setFirstName] = useState('');
 const [searchName, setSearchName] = useState('');
 const [accountResults, setAccountResults] = useState<Array<{
@@ -158,6 +160,10 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showFaceVerification, setShowFaceVerification] = useState(false);
   const [showFingerprintVerification, setShowFingerprintVerification] = useState(false);
   const [pendingAccountData, setPendingAccountData] = useState<AccountData | null>(null);
+  const [showAuthMethodSelection, setShowAuthMethodSelection] = useState(false);
+  const [showOTPVerification, setShowOTPVerification] = useState(false);
+  const [selectedAccountForAuth, setSelectedAccountForAuth] = useState<{accountNumber: string, accountName: string, cif: string} | null>(null);
+  const [otpMaskedPhone, setOtpMaskedPhone] = useState<string>('');
   const [showMainDashboard, setShowMainDashboard] = useState(false);
   const [showTransactionMap, setShowTransactionMap] = useState(false);
   const [branchSelected, setBranchSelected] = useState<boolean>(false);
@@ -183,7 +189,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
   const isSubmitDisabled = useMemo(() => {
     if (loading) return true;
-    
+
     switch (searchType) {
       case 'account':
         return accountNumber.length !== 16;
@@ -191,10 +197,12 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         return !searchName.trim();
       case 'phone':
         return !firstName.trim() || !phoneNumber.startsWith('+251') || phoneNumber.length !== 13;
+      case 'combined':
+        return accountNumber.length !== 16 || !fullName.trim() || !firstName.trim() || !phoneNumber.startsWith('+251') || phoneNumber.length !== 13;
       default:
         return true;
     }
-  }, [searchType, accountNumber, searchName, firstName, phoneNumber, loading]);
+  }, [searchType, accountNumber, searchName, firstName, phoneNumber, fullName, loading]);
 
 
 
@@ -485,11 +493,102 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const handleAccountSelect = async (selectedAccountNumber: string) => {
     setAccountNumber(selectedAccountNumber);
     setShowAccountSelection(false);
-    setSearchType('account');
-    
-    // Trigger the account verification process with the selected account number
-    const event = { preventDefault: () => {} } as React.FormEvent<HTMLFormElement>;
-    await handleAccountSubmit(event);
+
+    // Extract CIF from account number
+    let cif = '';
+    if (selectedAccountNumber.length === 16) {
+      const withoutLast3 = selectedAccountNumber.slice(0, -3);
+      cif = withoutLast3.slice(-7);
+    }
+
+    // Get account name from account results
+    const account = accountResults.find(acc => acc.CUST_AC_NO === selectedAccountNumber);
+    const accountName = account?.ACC_DESC || '';
+
+    // Store selected account info and show auth method selection
+    setSelectedAccountForAuth({
+      accountNumber: selectedAccountNumber,
+      accountName: accountName,
+      cif: cif
+    });
+    setShowAuthMethodSelection(true);
+  };
+
+  const handleAuthMethodSelect = async (method: 'face' | 'fingerprint' | 'otp') => {
+    setShowAuthMethodSelection(false);
+
+    if (!selectedAccountForAuth) return;
+
+    if (method === 'face') {
+      // Verify account and show face verification
+      setLoading(true);
+      try {
+        const response = await fetch('/api/account/verify', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ accountNumber: selectedAccountForAuth.accountNumber }),
+        });
+
+        const result = await response.json();
+
+        if (result.success) {
+          const transactionsResponse = await fetch(`/api/transactions?accountNumber=${selectedAccountForAuth.accountNumber}`);
+          const transactionsResult = await transactionsResponse.json();
+
+          if (transactionsResponse.ok) {
+            const accountDataWithTransactions = {
+              ...result.data,
+              transactions: transactionsResult.data
+            };
+
+            if (accountDataWithTransactions.PROFILE_IMAGE) {
+              setPendingAccountData(accountDataWithTransactions);
+              setShowFaceVerification(true);
+            } else {
+              setError('Profile image not found');
+            }
+          } else {
+            setError('Failed to fetch transactions');
+          }
+        } else {
+          setError(result.message || 'Account not found');
+        }
+      } catch (err) {
+        setError('An error occurred while verifying your account');
+      } finally {
+        setLoading(false);
+      }
+    } else if (method === 'fingerprint') {
+      // Show fingerprint verification with CIF
+      setShowFingerprintVerification(true);
+    } else if (method === 'otp') {
+      // Generate and send OTP
+      setLoading(true);
+      try {
+        const response = await fetch('/api/zsmart_branch_requests/generate-otp', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ account_number: selectedAccountForAuth.accountNumber }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && !result.error) {
+          setOtpMaskedPhone(result.data.maskedPhone);
+          setShowOTPVerification(true);
+        } else {
+          setError(result.message || 'Failed to send OTP');
+        }
+      } catch (err) {
+        setError('An error occurred while sending OTP');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
 
@@ -509,6 +608,49 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setPendingAccountData(null);
   };
 
+  // Handler for OTP verification success
+  const handleOTPSuccess = async () => {
+    setShowOTPVerification(false);
+    if (!selectedAccountForAuth) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      // Verify the account to get full account data
+      const response = await fetch('/api/account/verify', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ accountNumber: selectedAccountForAuth.accountNumber }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        const transactionsResponse = await fetch(`/api/transactions?accountNumber=${selectedAccountForAuth.accountNumber}`);
+        const transactionsResult = await transactionsResponse.json();
+
+        if (transactionsResponse.ok) {
+          setAccountData({
+            ...result.data,
+            transactions: transactionsResult.data
+          });
+          setShowDashboard(true);
+        } else {
+          setError('Failed to fetch transactions');
+        }
+      } else {
+        setError(result.message || 'Account not found');
+      }
+    } catch (err) {
+      setError('An error occurred while verifying your account');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Handler for fingerprint authentication success
   const handleFingerprintSuccess = async (selectedAccountNumber: string, customerName: string) => {
     // Close modal and reset view states first
@@ -523,6 +665,9 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setLoading(true);
     setError(null);
 
+    // If we have selectedAccountForAuth, use that specific account instead of the one from fingerprint
+    const accountToUse = selectedAccountForAuth?.accountNumber || selectedAccountNumber;
+
     try {
       // Verify the account to get full account data
       const response = await fetch('/api/account/verify', {
@@ -530,7 +675,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ accountNumber: selectedAccountNumber }),
+        body: JSON.stringify({ accountNumber: accountToUse }),
       });
 
       const result = await response.json();
@@ -1535,8 +1680,8 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   type="button"
                   onClick={() => setSearchType('account')}
                   className={`px-4 py-2 rounded ${
-                    searchType === 'account' 
-                      ? 'bg-[#E60000] text-white' 
+                    searchType === 'account'
+                      ? 'bg-[#E60000] text-white'
                       : 'bg-gray-200 text-gray-700'
                   }`}
                 >
@@ -1546,8 +1691,8 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   type="button"
                   onClick={() => setSearchType('name')}
                   className={`px-4 py-2 rounded ${
-                    searchType === 'name' 
-                      ? 'bg-[#E60000] text-white' 
+                    searchType === 'name'
+                      ? 'bg-[#E60000] text-white'
                       : 'bg-gray-200 text-gray-700'
                   }`}
                 >
@@ -1566,13 +1711,14 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowFingerprintVerification(true)}
-                  className="px-4 py-2 rounded bg-gradient-to-r from-green-500 to-green-600 text-white hover:from-green-600 hover:to-green-700 transition-all flex items-center gap-2"
+                  onClick={() => setSearchType('combined')}
+                  className={`px-4 py-2 rounded ${
+                    searchType === 'combined'
+                      ? 'bg-[#E60000] text-white'
+                      : 'bg-gray-200 text-gray-700'
+                  }`}
                 >
-                  <svg className="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M7.864 4.243A7.5 7.5 0 0119.5 10.5c0 2.92-.556 5.709-1.568 8.268M5.742 6.364A7.465 7.465 0 004.5 10.5a7.464 7.464 0 01-1.15 3.993m1.989 3.559A11.209 11.209 0 008.25 10.5a3.75 3.75 0 117.5 0c0 .527-.021 1.049-.064 1.565M12 10.5a14.94 14.94 0 01-3.6 9.75m6.633-4.596a18.666 18.666 0 01-2.485 5.33" />
-                  </svg>
-                  Fingerprint
+                  Complete Information
                 </button>
               </div>
             </div>
@@ -1594,35 +1740,35 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   maxLength={16}
                 />
               </div>
-            ) :searchType === 'name' ? (
+            ) : searchType === 'name' ? (
               <div className="relative">
-    <FiUser className="absolute top-3 left-3 text-gray-400" />
-    <input
-      type="text"
-      value={searchName}
-      onChange={(e) => setSearchName(e.target.value)}
-      className={`w-full p-2 pl-10 border ${
-        searchName && !isFullName(searchName) 
-          ? 'border-red-300 focus:ring-red-500' 
-          : 'border-gray-300 focus:ring-blue-500'
-      } rounded-lg mb-2 focus:outline-none focus:ring-2`}
-      placeholder="Enter your full name"
-    />
-    <div className="text-sm space-y-1">
-      <p className="text-gray-500">
-        Format: First Name Father's Name Grandfather's Name
-      </p>
-      <p className="text-gray-500">
-        Example: Abebe Kebede Tadesse
-      </p>
-      {searchName && !isFullName(searchName) && (
-        <p className="text-red-500">
-          Please enter your complete name with three parts
-        </p>
-      )}
-    </div>
-  </div>
-            ) : (
+                <FiUser className="absolute top-3 left-3 text-gray-400" />
+                <input
+                  type="text"
+                  value={searchName}
+                  onChange={(e) => setSearchName(e.target.value)}
+                  className={`w-full p-2 pl-10 border ${
+                    searchName && !isFullName(searchName)
+                      ? 'border-red-300 focus:ring-red-500'
+                      : 'border-gray-300 focus:ring-blue-500'
+                  } rounded-lg mb-2 focus:outline-none focus:ring-2`}
+                  placeholder="Enter your full name"
+                />
+                <div className="text-sm space-y-1">
+                  <p className="text-gray-500">
+                    Format: First Name Father's Name Grandfather's Name
+                  </p>
+                  <p className="text-gray-500">
+                    Example: Abebe Kebede Tadesse
+                  </p>
+                  {searchName && !isFullName(searchName) && (
+                    <p className="text-red-500">
+                      Please enter your complete name with three parts
+                    </p>
+                  )}
+                </div>
+              </div>
+            ) : searchType === 'phone' ? (
               <div className="space-y-4">
                 <div className="relative">
                   <FiUser className="absolute top-3 left-3 text-gray-400" />
@@ -1641,12 +1787,67 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                     value={phoneNumber}
                     onChange={(e) => {
                       const formatted = formatPhoneNumber(e.target.value);
-                      if (formatted.length <= 13) { 
+                      if (formatted.length <= 13) {
                         setPhoneNumber(formatted);
                       }
                     }}
                     className="w-full p-2 mb-5 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
                     placeholder="Enter phone number (+251...)"
+                    maxLength={13}
+                  />
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                <div className="relative">
+                  <FiUser className="absolute top-3 left-3 text-gray-400" />
+                  <input
+                    type="text"
+                    value={accountNumber}
+                    onChange={(e) => {
+                      const value = e.target.value.replace(/[^0-9]/g, '');
+                      if (value.length <= 16) {
+                        setAccountNumber(value);
+                      }
+                    }}
+                    className="w-full p-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
+                    placeholder="16-digit account number"
+                    maxLength={16}
+                  />
+                </div>
+                <div className="relative">
+                  <FiUser className="absolute top-3 left-3 text-gray-400" />
+                  <input
+                    type="text"
+                    value={fullName}
+                    onChange={(e) => setFullName(e.target.value)}
+                    className="w-full p-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
+                    placeholder="Full name"
+                  />
+                </div>
+                <div className="relative">
+                  <FiUser className="absolute top-3 left-3 text-gray-400" />
+                  <input
+                    type="text"
+                    value={firstName}
+                    onChange={(e) => setFirstName(e.target.value)}
+                    className="w-full p-2 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
+                    placeholder="First name"
+                  />
+                </div>
+                <div className="relative">
+                  <FiPhone className="absolute top-3 left-3 text-gray-400" />
+                  <input
+                    type="tel"
+                    value={phoneNumber}
+                    onChange={(e) => {
+                      const formatted = formatPhoneNumber(e.target.value);
+                      if (formatted.length <= 13) {
+                        setPhoneNumber(formatted);
+                      }
+                    }}
+                    className="w-full p-2 mb-5 pl-10 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
+                    placeholder="Phone number (+251...)"
                     maxLength={13}
                   />
                 </div>
@@ -2417,6 +2618,23 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           <FingerprintVerificationModal
             onClose={handleFingerprintClose}
             onSuccess={handleFingerprintSuccess}
+            cif={selectedAccountForAuth?.cif}
+          />
+        )}
+        {showAuthMethodSelection && selectedAccountForAuth && (
+          <AuthMethodSelectionModal
+            onClose={() => setShowAuthMethodSelection(false)}
+            onSelectMethod={handleAuthMethodSelect}
+            accountNumber={selectedAccountForAuth.accountNumber}
+            accountName={selectedAccountForAuth.accountName}
+          />
+        )}
+        {showOTPVerification && selectedAccountForAuth && (
+          <OTPVerificationModal
+            onClose={() => setShowOTPVerification(false)}
+            onSuccess={handleOTPSuccess}
+            accountNumber={selectedAccountForAuth.accountNumber}
+            maskedPhone={otpMaskedPhone}
           />
         )}
       </main>

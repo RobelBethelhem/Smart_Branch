@@ -22,11 +22,13 @@ interface FingerprintAuthResult {
 interface FingerprintVerificationModalProps {
   onClose: () => void;
   onSuccess: (accountNumber: string, customerName: string) => void;
+  cif?: string; // Optional CIF to verify specific customer only
 }
 
 const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> = ({
   onClose,
   onSuccess,
+  cif,
 }) => {
   const [status, setStatus] = useState<'connecting' | 'ready' | 'scanning' | 'verifying' | 'success' | 'error'>('connecting');
   const [message, setMessage] = useState('Connecting to fingerprint scanner...');
@@ -178,12 +180,21 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
 
   const authenticateFingerprint = async (template: string) => {
     try {
+      const requestBody: {fingerprint_template: string, cif?: string} = {
+        fingerprint_template: template
+      };
+
+      // If CIF is provided, only check against that specific customer
+      if (cif) {
+        requestBody.cif = cif;
+      }
+
       const response = await fetch('http://localhost:5000/api/zsmart_branch_requests/biometric/authenticate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ fingerprint_template: template }),
+        body: JSON.stringify(requestBody),
       });
 
       const result = await response.json();
