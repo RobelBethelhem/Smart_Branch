@@ -33,9 +33,11 @@ interface UserDashboardProps {
   balance: number;
   name: string;
   profileImage: string;
+  noDebit?: string;
+  noCredit?: string;
 }
 
-const UserDashboard: React.FC<UserDashboardProps> = ({ onOptionClick, balance, name,profileImage }) => {
+const UserDashboard: React.FC<UserDashboardProps> = ({ onOptionClick, balance, name, profileImage, noDebit, noCredit }) => {
   const [showCommentForm, setShowCommentForm] = useState(false);
   const [comment, setComment] = useState('');
   const [showTransfer, setShowTransfer] = useState(false); // State to show OtherBankTransferComponent
@@ -104,41 +106,50 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onOptionClick, balance, n
               </div>
               
               <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                <DashboardOption 
-                  icon={<DollarSign className="w-8 h-8 text-blue-500" />} 
-                  label="Withdraw" 
-                  onClick={() => handleOptionClick('withdraw')} 
+                {/* Hide Withdraw if NO_DEBIT is restricted */}
+                {noDebit !== 'Y' && (
+                  <DashboardOption
+                    icon={<DollarSign className="w-8 h-8 text-blue-500" />}
+                    label="Withdraw"
+                    onClick={() => handleOptionClick('withdraw')}
+                  />
+                )}
+                {/* Hide Deposit if NO_CREDIT is restricted */}
+                {noCredit !== 'Y' && (
+                  <DashboardOption
+                    icon={<ArrowUpRight className="w-8 h-8 text-green-500" />}
+                    label="Deposit"
+                    onClick={() => handleOptionClick('deposit')}
+                  />
+                )}
+                <DashboardOption
+                  icon={<RefreshCcw className="w-8 h-8 text-purple-500" />}
+                  label="Transfer"
+                  onClick={() => handleOptionClick('transfer')}
                 />
-                <DashboardOption 
-                  icon={<ArrowUpRight className="w-8 h-8 text-green-500" />} 
-                  label="Deposit" 
-                  onClick={() => handleOptionClick('deposit')} 
+                <DashboardOption
+                  icon={<Info className="w-8 h-8 text-orange-500" />}
+                  label="Foreign Exchange"
+                  onClick={() => handleOptionClick('forex')}
                 />
-                <DashboardOption 
-                  icon={<RefreshCcw className="w-8 h-8 text-purple-500" />} 
-                  label="Transfer" 
-                  onClick={() => handleOptionClick('transfer')} 
-                />
-                <DashboardOption 
-                  icon={<Info className="w-8 h-8 text-orange-500" />} 
-                  label="Foreign Exchange" 
-                  onClick={() => handleOptionClick('forex')} 
-                />
-                <DashboardOption 
-                  icon={<MessageCircle className="w-8 h-8 text-orange-500" />} 
-                  label="Drop Comment" 
-                  onClick={() => handleOptionClick('comment')} 
+                <DashboardOption
+                  icon={<MessageCircle className="w-8 h-8 text-orange-500" />}
+                  label="Drop Comment"
+                  onClick={() => handleOptionClick('comment')}
                 />
                 <DashboardOption
                   icon={<CreditCard className="w-8 h-8 text-blue-600" />}
                   label="Other Bank Transfer"
                   onClick={() => handleOptionClick('other-bank-transfer')}
                 />
-                <DashboardOption
-                  icon={<FileCheck className="w-8 h-8 text-teal-600" />}
-                  label="E-Check"
-                  onClick={() => handleOptionClick('echeck')}
-                />
+                {/* Hide E-Check if NO_DEBIT is restricted */}
+                {noDebit !== 'Y' && (
+                  <DashboardOption
+                    icon={<FileCheck className="w-8 h-8 text-teal-600" />}
+                    label="E-Check"
+                    onClick={() => handleOptionClick('echeck')}
+                  />
+                )}
               </div>
 
               {showCommentForm && (

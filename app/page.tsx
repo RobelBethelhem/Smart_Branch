@@ -2437,29 +2437,35 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </div>
               </motion.div>
 
-              <motion.div
-                className="bg-rose-500 rounded-lg overflow-hidden cursor-pointer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleOptionClick('withdraw')}
-              >
-                <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
-                  <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
-                  <span className="text-base sm:text-lg font-semibold text-center">Withdraw</span>
-                </div>
-              </motion.div>
+              {/* Hide Withdraw if NO_DEBIT is restricted */}
+              {accountData.NO_DEBIT !== 'Y' && (
+                <motion.div
+                  className="bg-rose-500 rounded-lg overflow-hidden cursor-pointer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleOptionClick('withdraw')}
+                >
+                  <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
+                    <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
+                    <span className="text-base sm:text-lg font-semibold text-center">Withdraw</span>
+                  </div>
+                </motion.div>
+              )}
 
-              <motion.div
-                className="bg-emerald-500 rounded-lg overflow-hidden cursor-pointer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleOptionClick('deposit')}
-              >
-                <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
-                  <FiDollarSign className="text-3xl sm:text-4xl mb-2" />
-                  <span className="text-base sm:text-lg font-semibold text-center">Deposit</span>
-                </div>
-              </motion.div>
+              {/* Hide Deposit if NO_CREDIT is restricted */}
+              {accountData.NO_CREDIT !== 'Y' && (
+                <motion.div
+                  className="bg-emerald-500 rounded-lg overflow-hidden cursor-pointer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleOptionClick('deposit')}
+                >
+                  <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
+                    <FiDollarSign className="text-3xl sm:text-4xl mb-2" />
+                    <span className="text-base sm:text-lg font-semibold text-center">Deposit</span>
+                  </div>
+                </motion.div>
+              )}
 
               <motion.div
                 className="bg-violet-500 rounded-lg overflow-hidden cursor-pointer"
@@ -2509,19 +2515,22 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </div>
               </motion.div>
 
-              <motion.div
-                className="bg-teal-600 rounded-lg overflow-hidden cursor-pointer"
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={() => handleOptionClick('echeck')}
-              >
-                <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
-                  <FiCheckSquare className="text-3xl sm:text-4xl mb-2" />
-                  <span className="text-base sm:text-lg font-semibold text-center">E-Check</span>
-                </div>
-              </motion.div>
+              {/* Hide E-Check if NO_DEBIT is restricted */}
+              {accountData.NO_DEBIT !== 'Y' && (
+                <motion.div
+                  className="bg-teal-600 rounded-lg overflow-hidden cursor-pointer"
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => handleOptionClick('echeck')}
+                >
+                  <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
+                    <FiCheckSquare className="text-3xl sm:text-4xl mb-2" />
+                    <span className="text-base sm:text-lg font-semibold text-center">E-Check</span>
+                  </div>
+                </motion.div>
+              )}
 
-              <motion.div
+              {/* <motion.div
               className="bg-pink-500 rounded-lg overflow-hidden cursor-pointer"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -2531,10 +2540,10 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 <FiLock className="text-3xl sm:text-4xl mb-2" />
                 <span className="text-base sm:text-lg font-semibold text-center">Set ATM PIN</span>
               </div>
-            </motion.div>
+            </motion.div> */}
 
 
-            <motion.div
+            {/* <motion.div
               className="bg-purple-500 rounded-lg overflow-hidden cursor-pointer"
               whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
@@ -2544,7 +2553,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 <QrCode className="text-3xl sm:text-4xl mb-2" />
                 <span className="text-base sm:text-lg font-semibold text-center">Get Merchant QR</span>
               </div>
-            </motion.div>
+            </motion.div> */}
 
 
               <motion.div
@@ -2559,7 +2568,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </div>
               </motion.div>
 
-              <motion.div
+              {/* <motion.div
                 className="bg-fuchsia-500 rounded-lg overflow-hidden cursor-pointer"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -2569,9 +2578,9 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
                   <span className="text-base sm:text-lg font-semibold text-center">Dispitute Card Request</span>
                 </div>
-              </motion.div>
+              </motion.div> */}
 
-              <motion.div
+              {/* <motion.div
                 className="bg-lime-500 rounded-lg overflow-hidden cursor-pointer"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -2581,7 +2590,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
                   <span className="text-base sm:text-lg font-semibold text-center">Prepaid card Request</span>
                 </div>
-              </motion.div>
+              </motion.div> */}
 
               <motion.div
                 className="bg-sky-500 rounded-lg overflow-hidden cursor-pointer"
@@ -2595,7 +2604,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </div>
               </motion.div>
 
-              <motion.div
+              {/* <motion.div
                 className="bg-purple-600 rounded-lg overflow-hidden cursor-pointer"
                 whileHover={{ scale: 1.05 }}
                 whileTap={{ scale: 0.95 }}
@@ -2605,7 +2614,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   <FiCreditCard className="text-3xl sm:text-4xl mb-2" />
                   <span className="text-base sm:text-lg font-semibold text-center">Demo Zemen Site Map</span>
                 </div>
-              </motion.div>
+              </motion.div> */}
 
               <motion.div
                 className="bg-purple-500 rounded-lg overflow-hidden cursor-pointer"
