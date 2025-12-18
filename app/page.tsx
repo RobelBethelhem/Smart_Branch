@@ -2050,20 +2050,6 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 'Access Your Account'
               )}
             </button>
-            {/* <button
-              type="button"
-              onClick={() => setShowOnboarding(true)}
-              className="text-blue-500 mt-4 text-sm hover:underline"
-            >
-              Don't have an account yet? Create Account in minutes.
-            </button> */}
-            <button
-              type="button"
-              onClick={() => window.open('https://bankpc.fayda.et/download-pdf', '_blank')}
-              className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white p-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-105 mt-4"
-            >
-              📄 Import from Fayda
-            </button>
           </motion.form>
           {error && <ErrorMessage message={error} onClose={() => setError(null)} />}
         </div>
