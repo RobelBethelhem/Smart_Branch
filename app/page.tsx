@@ -25,6 +25,7 @@ import FingerprintVerificationModal from '@/components/FingerprintVerificationMo
 import AuthMethodSelectionModal from '@/components/AuthMethodSelectionModal';
 import OTPVerificationModal from '@/components/OTPVerificationModal';
 import MiniStatement from '@/components/MiniStatement';
+import FaydaDataModal from '@/components/FaydaDataModal';
 import Dashboard from '@/components/Dashboard';
 import SetATMPasswordComponent from '@/components/SetATMPasswordComponent';
 import { QrCode } from 'lucide-react';
@@ -169,6 +170,8 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [branchSelected, setBranchSelected] = useState<boolean>(false);
   const [uniqueReference, setUniqueReference] = useState('');
   const [formData, setFormData] = useState<Transactions | null>(null);
+  const [showFaydaModal, setShowFaydaModal] = useState(false);
+  const [faydaData, setFaydaData] = useState<any>(null);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>, transaction: Transactions) => {
     const { name, value } = e.target;
@@ -369,6 +372,37 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
     return () => clearInterval(checkInactivity);
   }, [lastActivity, showAd]);
+
+  // Listen for messages from browser extension
+  useEffect(() => {
+    const handleExtensionMessage = (event: MessageEvent) => {
+      // Check if message is from our extension
+      if (event.data && event.data.type === 'FAYDA_DATA_RECEIVED') {
+        console.log('Received Fayda data from extension:', event.data.data);
+        setFaydaData(event.data.data);
+        setShowFaydaModal(true);
+      }
+    };
+
+    window.addEventListener('message', handleExtensionMessage);
+
+    // Also check chrome.storage if extension already sent data
+    if (typeof chrome !== 'undefined' && chrome.storage) {
+      chrome.storage.local.get(['faydaData'], (result) => {
+        if (result.faydaData) {
+          console.log('Found queued Fayda data:', result.faydaData);
+          setFaydaData(result.faydaData);
+          setShowFaydaModal(true);
+          // Clear it so it doesn't show again
+          chrome.storage.local.remove(['faydaData']);
+        }
+      });
+    }
+
+    return () => {
+      window.removeEventListener('message', handleExtensionMessage);
+    };
+  }, []);
 
 
 
@@ -2013,12 +2047,19 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 'Access Your Account'
               )}
             </button>
-            <button
+            {/* <button
               type="button"
               onClick={() => setShowOnboarding(true)}
               className="text-blue-500 mt-4 text-sm hover:underline"
             >
               Don't have an account yet? Create Account in minutes.
+            </button> */}
+            <button
+              type="button"
+              onClick={() => window.open('https://bankpc.fayda.et', '_blank')}
+              className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white p-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-105 mt-4"
+            >
+              Import from Fayda
             </button>
           </motion.form>
           {error && <ErrorMessage message={error} onClose={() => setError(null)} />}
@@ -2637,6 +2678,16 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
             maskedPhone={otpMaskedPhone}
           />
         )}
+        <FaydaDataModal
+          isOpen={showFaydaModal}
+          onClose={() => setShowFaydaModal(false)}
+          data={faydaData}
+          onConfirm={(data) => {
+            console.log('User confirmed Fayda data:', data);
+            // TODO: Handle the confirmed data - auto-fill forms, etc.
+            setShowFaydaModal(false);
+          }}
+        />
       </main>
     </OpenCVProvider>
   );
