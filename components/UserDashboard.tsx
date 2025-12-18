@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import { User, DollarSign, ArrowUpRight, RefreshCcw, Info, MessageCircle, CreditCard } from 'lucide-react';
+import { User, DollarSign, ArrowUpRight, RefreshCcw, Info, MessageCircle, CreditCard, FileCheck } from 'lucide-react';
 import OtherBankTransferComponent from './OtherBankTransfer'; // Adjust the import path as needed
 
 // // Mock user data
@@ -103,7 +103,7 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onOptionClick, balance, n
                 />
               </div>
               
-              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+              <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
                 <DashboardOption 
                   icon={<DollarSign className="w-8 h-8 text-blue-500" />} 
                   label="Withdraw" 
@@ -129,10 +129,15 @@ const UserDashboard: React.FC<UserDashboardProps> = ({ onOptionClick, balance, n
                   label="Drop Comment" 
                   onClick={() => handleOptionClick('comment')} 
                 />
-                <DashboardOption 
-                  icon={<CreditCard className="w-8 h-8 text-blue-600" />} 
-                  label="Other Bank Transfer" 
-                  onClick={() => handleOptionClick('other-bank-transfer')} 
+                <DashboardOption
+                  icon={<CreditCard className="w-8 h-8 text-blue-600" />}
+                  label="Other Bank Transfer"
+                  onClick={() => handleOptionClick('other-bank-transfer')}
+                />
+                <DashboardOption
+                  icon={<FileCheck className="w-8 h-8 text-teal-600" />}
+                  label="E-Check"
+                  onClick={() => handleOptionClick('echeck')}
                 />
               </div>
 

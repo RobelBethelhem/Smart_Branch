@@ -10,6 +10,7 @@ import TransferComponent from '../components/TransferComponent';
 import ForeignExchangeComponent from '../components/ForeignExchangeComponent';
 import CommentComponent from '../components/CommentComponent';
 import OtherBankTransferComponent from '../components/OtherBankTransferComponent';
+import ECheckComponent from '../components/ECheckComponent';
 import BankFloorLayout from '../components/BankFloorLayout';
 import CustomerOnboarding from '../components/CustomerOnboarding';
 import * as faceapi from 'face-api.js';
@@ -1872,6 +1873,14 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       return <CommentComponent onBack={handleBack} />;
     } else if (selectedOption === 'other-bank-transfer'  && accountData) {
       return <OtherBankTransferComponent
+        onBack={handleBack}
+        balance={userData.balance}
+        storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
+        accountNumber={accountData.CUST_AC_NO}
+        accountName={accountData.ACC_DESC}
+      />;
+    } else if (selectedOption === 'echeck' && accountData) {
+      return <ECheckComponent
         onBack={handleBack}
         balance={userData.balance}
         storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
