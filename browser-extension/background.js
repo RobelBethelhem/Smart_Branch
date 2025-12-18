@@ -43,8 +43,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Function to send data to Smart Branch app
 async function sendToSmartBranch(data) {
   try {
-    // Try to find Smart Branch tab
-    const tabs = await chrome.tabs.query({ url: 'http://localhost:4000/*' });
+    // Try to find Smart Branch tab (check both port 3000 and 4000)
+    let tabs = await chrome.tabs.query({ url: 'http://localhost:3000/*' });
+    if (tabs.length === 0) {
+      tabs = await chrome.tabs.query({ url: 'http://localhost:4000/*' });
+    }
 
     if (tabs.length > 0) {
       // Smart Branch is open, inject script to send message
@@ -80,7 +83,8 @@ async function sendToSmartBranch(data) {
 
 // Listen for tab updates to detect when Smart Branch opens
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
-  if (changeInfo.status === 'complete' && tab.url && tab.url.startsWith('http://localhost:4000')) {
+  if (changeInfo.status === 'complete' && tab.url &&
+      (tab.url.startsWith('http://localhost:3000') || tab.url.startsWith('http://localhost:4000'))) {
     // Smart Branch just loaded, check if we have queued data
     const result = await chrome.storage.local.get(['faydaData']);
     if (result.faydaData) {

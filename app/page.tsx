@@ -2056,7 +2056,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
             </button> */}
             <button
               type="button"
-              onClick={() => window.open('https://bankpc.fayda.et', '_blank')}
+              onClick={() => window.open('https://bankpc.fayda.et/download-pdf', '_blank')}
               className="w-full bg-gradient-to-r from-green-500 to-green-600 text-white p-3 rounded-lg font-semibold hover:from-green-600 hover:to-green-700 transition-all duration-300 transform hover:scale-105 mt-4"
             >
               Import from Fayda

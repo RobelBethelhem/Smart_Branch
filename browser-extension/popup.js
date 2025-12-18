@@ -154,6 +154,6 @@ chrome.tabs.query({ url: 'https://bankpc.fayda.et/*' }, (tabs) => {
   if (tabs.length > 0) {
     updateStatus('✅ Fayda tab detected - Ready to extract', 'ready');
   } else {
-    updateStatus('ℹ️ Please open Fayda tab first', 'idle');
+    updateStatus('ℹ️ Please open Fayda tab (download-pdf)', 'idle');
   }
 });
