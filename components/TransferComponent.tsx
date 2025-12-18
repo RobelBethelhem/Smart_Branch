@@ -423,7 +423,6 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
               <div className="flex items-center gap-3 mb-2">
-                <DollarSign className="text-[#E60000]" />
                 <p className="text-gray-500 text-sm uppercase tracking-wider">Available Balance</p>
               </div>
               <p className="font-semibold text-lg">ETB {balance.toFixed(2)}</p>
@@ -431,7 +430,6 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
 
             <div className="p-4 rounded-xl bg-gray-50 border border-gray-200">
               <div className="flex items-center gap-3 mb-2">
-                <DollarSign className="text-[#E60000]" />
                 <p className="text-gray-500 text-sm uppercase tracking-wider">Account Number</p>
               </div>
               <p className="font-semibold text-lg">{accountNumber}</p>
