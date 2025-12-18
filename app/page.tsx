@@ -3,7 +3,7 @@
 import { OpenCVProvider } from '@/components/OpenCVProvider';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
-import { FiClock, FiCalendar, FiMapPin, FiUser, FiDollarSign, FiCreditCard, FiSend, FiGlobe, FiMessageCircle, FiDatabase, FiLock, FiPhone, FiLogOut } from 'react-icons/fi';
+import { FiClock, FiCalendar, FiMapPin, FiUser, FiDollarSign, FiCreditCard, FiSend, FiGlobe, FiMessageCircle, FiDatabase, FiLock, FiPhone, FiLogOut, FiCheckSquare } from 'react-icons/fi';
 import WithdrawComponent from '../components/WithdrawComponent';
 import DepositComponent from '../components/DepositComponent';
 import TransferComponent from '../components/TransferComponent';
@@ -2278,6 +2278,17 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </div>
               </motion.div>
 
+              <motion.div
+                className="bg-teal-600 rounded-lg overflow-hidden cursor-pointer"
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => handleOptionClick('echeck')}
+              >
+                <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
+                  <FiCheckSquare className="text-3xl sm:text-4xl mb-2" />
+                  <span className="text-base sm:text-lg font-semibold text-center">E-Check</span>
+                </div>
+              </motion.div>
 
               <motion.div
               className="bg-pink-500 rounded-lg overflow-hidden cursor-pointer"
