@@ -8,10 +8,10 @@ import BranchServiceModal from './BranchServiceModal';
 
 interface OtherBankTransferComponentProps {
   onBack: () => void;
-  balance: number;
-  storedSignature: string;
-  accountNumber: string;  // Add this
-  accountName: string;  
+  balance?: number;
+  storedSignature?: string;
+  accountNumber?: string;  // Add this
+  accountName?: string;
 }
 
 const numberToWords = (num: number): string => {
@@ -127,6 +127,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
   const fetchDepositorAddress = async () => {
     try {
       // Extract customer number from account number
+      if (!accountNumber) return null;
       const customerNumber = accountNumber.substring(6, 13);
       console.log('Extracted customer number:', customerNumber);
       
@@ -168,8 +169,8 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
         signature: drawnSignature,
         telephone: addressData?.TELEPHONE || '',
         address: addressData?.CITY + ' ' + addressData?.SUBCITY + ' ' + addressData?.WOREDA + ' ' + addressData?.HOUSE_NUMBER || '',
-        account_number: accountNumber,
-        acc_holder_branch: accountNumber.substring(0, 3),
+        account_number: accountNumber || '',
+        acc_holder_branch: accountNumber?.substring(0, 3) || '',
         beneficiary_account_number: recipientAccount,
         beneficiary_bank: otherBankName,
         transfer_type: "RTGS",
@@ -223,8 +224,8 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
         signature: drawnSignature,
         telephone: addressData?.TELEPHONE || '',
         address: addressData?.CITY + ' ' + addressData?.SUBCITY + ' ' + addressData?.WOREDA + ' ' + addressData?.HOUSE_NUMBER || '',
-        account_number: accountNumber,
-        acc_holder_branch: accountNumber.substring(0, 3),
+        account_number: accountNumber || '',
+        acc_holder_branch: accountNumber?.substring(0, 3) || '',
         beneficiary_account_number: recipientAccount,
         beneficiary_bank: otherBankName,
         transfer_type: "RTGS",
@@ -471,7 +472,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
             onConfirm={handleVerificationSuccess}
             onError={handleVerificationError}
             type="otherBankTransfer"
-            storedSignature={storedSignature}
+            storedSignature={storedSignature || ''}
             drawnSignature={drawnSignature}
             additionalInfo={`to ${recipientName} at ${otherBankName}`}
           />

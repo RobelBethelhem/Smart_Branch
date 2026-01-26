@@ -211,7 +211,7 @@ export default function Home() {
     } else if (selectedOption === 'comment') {
       return <CommentComponent onBack={handleBack} />;
     } else if (selectedOption === 'other-bank-transfer') {
-      return <OtherBankTransferComponent onBack={handleBack} />;
+      return <OtherBankTransferComponent onBack={handleBack} balance={userData.balance} />;
     } else {
       return (
         <motion.div

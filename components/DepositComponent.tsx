@@ -47,9 +47,9 @@ const numberToWords = (num: number): string => {
 interface DepositComponentProps {
   onBack: () => void;
   balance: number;
-  storedSignature: string;
-  accountNumber: string;
-  accountName: string;
+  storedSignature?: string;
+  accountNumber?: string;
+  accountName?: string;
 }
 
 // Add this interface for the address structure
@@ -126,6 +126,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
   const fetchDepositorAddress = async () => {
     try {
       // Extract customer number from account number
+      if (!accountNumber) return null;
       const customerNumber = accountNumber.substring(6, 13);
       console.log('Extracted customer number:', customerNumber);
       
@@ -398,7 +399,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
             onConfirm={handleVerificationSuccess}
             onError={handleVerificationError}
             type="deposit"
-            storedSignature={storedSignature}
+            storedSignature={storedSignature || ''}
             drawnSignature={drawnSignature}
             additionalInfo={`New balance will be ETB ${(balance + parseFloat(amount)).toFixed(2)}`}
           />

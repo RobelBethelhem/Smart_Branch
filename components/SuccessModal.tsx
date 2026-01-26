@@ -6,7 +6,7 @@ interface SuccessModalProps {
   amount: string;
   onClose: () => void;
   type: 'withdrawal' | 'deposit' | 'transfer' | 'otherBankTransfer' | 'exchange';
-  customerNumber: string;
+  customerNumber?: string;
   assignedTo?: string;
 }
 

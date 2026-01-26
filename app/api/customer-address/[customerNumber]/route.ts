@@ -7,10 +7,10 @@ interface Params {
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: Params }
+  { params }: { params: Promise<Params> }
 ) {
   try {
-    const customerNumber = params.customerNumber;
+    const { customerNumber } = await params;
 
     const sql = `
       SELECT 

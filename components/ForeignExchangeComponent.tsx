@@ -17,7 +17,7 @@ const mockExchangeRates: Record<string, number> = {
 interface ForeignExchangeComponentProps {
   onBack: () => void;
   balance: number;
-  storedSignature: string;
+  storedSignature?: string;
 }
 
 const ForeignExchangeComponent: React.FC<ForeignExchangeComponentProps> = ({ onBack, balance, storedSignature }) => {
@@ -270,7 +270,7 @@ const ForeignExchangeComponent: React.FC<ForeignExchangeComponentProps> = ({ onB
             onConfirm={handleVerificationSuccess}
             onError={handleVerificationError}
             type="exchange"
-            storedSignature={storedSignature}
+            storedSignature={storedSignature || ''}
             drawnSignature={drawnSignature}
           />
         )}

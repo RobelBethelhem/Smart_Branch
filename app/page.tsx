@@ -65,9 +65,11 @@ const BranchInfo: React.FC = () => {
   const [branchCode, setBranchCode] = useState<string | null>(null);
 
   useEffect(() => {
-    const storedBranch = localStorage.getItem('branchCode');
-    if (storedBranch) {
-      setBranchCode(storedBranch);
+    if (typeof window !== 'undefined') {
+      const storedBranch = localStorage.getItem('branchCode');
+      if (storedBranch) {
+        setBranchCode(storedBranch);
+      }
     }
   }, []);
 
@@ -151,6 +153,7 @@ const [accountResults, setAccountResults] = useState<Array<{
 const [showAccountSelection, setShowAccountSelection] = useState(false);
 
   // UI state
+  const [mounted, setMounted] = useState(false);
   const [showInput, setShowInput] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showAd, setShowAd] = useState(false);
@@ -174,6 +177,11 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showFaydaModal, setShowFaydaModal] = useState(false);
   const [faydaData, setFaydaData] = useState<any>(null);
   const [showFaydaPDFUpload, setShowFaydaPDFUpload] = useState(false);
+
+  // Prevent hydration errors by only rendering after mount
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>, transaction: Transactions) => {
     const { name, value } = e.target;
@@ -389,14 +397,14 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     window.addEventListener('message', handleExtensionMessage);
 
     // Also check chrome.storage if extension already sent data
-    if (typeof chrome !== 'undefined' && chrome.storage) {
-      chrome.storage.local.get(['faydaData'], (result) => {
+    if (typeof (window as any).chrome !== 'undefined' && (window as any).chrome.storage) {
+      (window as any).chrome.storage.local.get(['faydaData'], (result: any) => {
         if (result.faydaData) {
           console.log('Found queued Fayda data:', result.faydaData);
           setFaydaData(result.faydaData);
           setShowFaydaModal(true);
           // Clear it so it doesn't show again
-          chrome.storage.local.remove(['faydaData']);
+          (window as any).chrome.storage.local.remove(['faydaData']);
         }
       });
     }
@@ -1629,6 +1637,11 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     }
 
 
+
+    // Prevent hydration mismatch by checking mounted state
+    if (!mounted) {
+      return null;
+    }
 
     const storedBranch = localStorage.getItem('branchCode');
     if (!storedBranch && !branchSelected) {

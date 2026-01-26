@@ -1,42 +1,56 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 
-const TransactionList = ({ responseData }) => {
-  const handleEditSubmit = (e) => {
-    e.preventDefault();
-    // Handle form submission logic here
-    console.log("Form submitted");
+interface Transaction {
+  request_type: string;
+  amount_in_figures?: string;
+  beneficiary_account_number?: string;
+  beneficiary_name?: string;
+  payment_narration?: string;
+  beneficiary_branch?: string;
+  [key: string]: any;
+}
+
+interface TransactionCardProps {
+  transaction: Transaction;
+  onSubmit: (formData: Transaction) => void;
+}
+
+// Separate component for transaction card to properly use hooks
+const TransactionCard: React.FC<TransactionCardProps> = ({ transaction, onSubmit }) => {
+  const [formData, setFormData] = useState<Transaction>(transaction);
+
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormData({
+      ...formData,
+      [name]: value,
+    });
   };
 
-  const renderTransactionCard = (transaction) => {
-    const [formData, setFormData] = useState(transaction);
+  const handleEditSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    onSubmit(formData);
+  };
 
-    const handleChange = (e) => {
-      const { name, value } = e.target;
-      setFormData({
-        ...formData,
-        [name]: value,
-      });
-    };
-
-    return (
-      <motion.form
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        onSubmit={handleEditSubmit}
-        className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-100"
+  return (
+    <motion.form
+      initial={{ opacity: 0, y: -20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5 }}
+      onSubmit={handleEditSubmit}
+      className="bg-white p-8 rounded-xl shadow-2xl w-full max-w-md border border-gray-100"
+    >
+      <motion.h2
+        initial={{ opacity: 0, x: 100 }}
+        animate={{ opacity: 1, x: 0 }}
+        transition={{ duration: 0.5, delay: 0.2 }}
+        className="text-2xl font-bold text-center text-gray-800 mb-6"
       >
-        <motion.h2
-          initial={{ opacity: 0, x: 100 }}
-          animate={{ opacity: 1, x: 0 }}
-          transition={{ duration: 0.5, delay: 0.2 }}
-          className="text-2xl font-bold text-center text-gray-800 mb-6"
-        >
-          Edit or Cancel Request
-        </motion.h2>
+        Edit or Cancel Request
+      </motion.h2>
 
-        {transaction.request_type === 'Deposit' && (
+      {transaction.request_type === 'Deposit' && (
           <motion.div
             initial={{ opacity: 0, x: -100 }}
             animate={{ opacity: 1, x: 0 }}
@@ -205,26 +219,42 @@ const TransactionList = ({ responseData }) => {
           </>
         )}
 
-        <motion.div
-          initial={{ opacity: 0, y: 50 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.5, delay: 1.2 }}
-          className="mt-6"
+      <motion.div
+        initial={{ opacity: 0, y: 50 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.5, delay: 1.2 }}
+        className="mt-6"
+      >
+        <button
+          type="submit"
+          className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
         >
-          <button
-            type="submit"
-            className="w-full bg-gradient-to-r from-blue-600 to-purple-600 text-white p-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
-          >
-            Submit
-          </button>
-        </motion.div>
-      </motion.form>
-    );
+          Submit
+        </button>
+      </motion.div>
+    </motion.form>
+  );
+};
+
+interface TransactionListProps {
+  responseData: Transaction[];
+}
+
+const TransactionList: React.FC<TransactionListProps> = ({ responseData }) => {
+  const handleEditSubmit = (formData: Transaction) => {
+    // Handle form submission logic here
+    console.log("Form submitted", formData);
   };
 
   return (
     <div>
-      {responseData.map((transaction) => renderTransactionCard(transaction))}
+      {responseData.map((transaction, index) => (
+        <TransactionCard
+          key={index}
+          transaction={transaction}
+          onSubmit={handleEditSubmit}
+        />
+      ))}
     </div>
   );
 };

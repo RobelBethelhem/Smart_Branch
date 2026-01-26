@@ -45,9 +45,9 @@ const numberToWords = (num: number): string => {
 interface OtherBankTransferProps {
   onBack: () => void;
   balance: number;
-  storedSignature: string;
-  accountNumber: string;  // Add this
-  accountName: string;  
+  storedSignature?: string;
+  accountNumber?: string;  // Add this
+  accountName?: string;
 }
 
 const OtherBankTransferComponent: React.FC<OtherBankTransferProps> = ({ 
@@ -371,7 +371,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferProps> = ({
             onConfirm={handleVerificationSuccess}
             onError={handleVerificationError}
             type="otherBankTransfer"
-            storedSignature={storedSignature}
+            storedSignature={storedSignature || ''}
             drawnSignature={drawnSignature}
             additionalInfo={`to ${recipientName} at ${bankName}`}
           />

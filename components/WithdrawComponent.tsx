@@ -48,9 +48,9 @@ const numberToWords = (num: number): string => {
 interface WithdrawComponentProps {
   onBack: () => void;
   balance: number;
-  storedSignature: string;
-  accountNumber: string;
-  accountName: string;
+  storedSignature?: string;
+  accountNumber?: string;
+  accountName?: string;
 }
 
 const WithdrawComponent: React.FC<WithdrawComponentProps> = ({ 
@@ -374,7 +374,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
             onConfirm={handleVerificationSuccess}
             onError={handleVerificationError}
             type="withdrawal"
-            storedSignature={formatSignatureUrl(storedSignature)}
+            storedSignature={formatSignatureUrl(storedSignature || '')}
             drawnSignature={drawnSignature}
             additionalInfo={`New balance will be ETB ${(balance - parseFloat(amount)).toFixed(2)}`}
           />

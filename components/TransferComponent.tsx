@@ -9,9 +9,9 @@ import BranchServiceModal from './BranchServiceModal';
 interface TransferComponentProps {
   onBack: () => void;
   balance: number;
-  storedSignature: string;
-  accountNumber: string;
-  accountName: string;
+  storedSignature?: string;
+  accountNumber?: string;
+  accountName?: string;
 }
 
 interface VerifyAccountModalProps {
@@ -582,7 +582,7 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
             onConfirm={handleVerificationSuccess}
             onError={handleVerificationError}
             type="transfer"
-            storedSignature={storedSignature}
+            storedSignature={storedSignature || ''}
             drawnSignature={drawnSignature}
             additionalInfo={`to ${recipientName} (${recipientAccount})`}
           />
