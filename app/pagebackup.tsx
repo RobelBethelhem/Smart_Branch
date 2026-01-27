@@ -23,6 +23,7 @@ import FaceVerificationModal from '@/components/FaceVerificationModal';
 import MiniStatement from '@/components/MiniStatement';
 import Dashboard from '@/components/Dashboard';
 import SetATMPasswordComponent from '@/components/SetATMPasswordComponent';
+import { API_BASE_URL } from '@/config/environment';
 import { QrCode } from 'lucide-react';
 import GetMerchantQR from '@/components/GetMerchantQR';
 import dynamic from 'next/dynamic';
@@ -502,7 +503,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     try {
       // Step 1: Fetch account number using the unique reference number
       const referenceResponse = await fetch(
-        'http://localhost:5000/api/zsmart_branch_requests/get_account_number_by_reference_number',
+        `${API_BASE_URL}/api/zsmart_branch_requests/get_account_number_by_reference_number`,
         {
           method: 'POST',
           headers: {

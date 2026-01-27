@@ -35,6 +35,7 @@ import dynamic from 'next/dynamic';
 import BranchSelection from '@/components/BranchSelection';
 import { AnimatePresence } from 'framer-motion';
 import numberToWords from '@/utils/numberToWordConverter'
+import { API_BASE_URL } from '@/config/environment';
 
 
 
@@ -612,7 +613,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       // Generate and send OTP
       setLoading(true);
       try {
-        const response = await fetch('http://localhost:5000/api/zsmart_branch_requests/generate-otp', {
+        const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/generate-otp`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -765,7 +766,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     try {
       // Step 1: Fetch account number using the unique reference number
       const referenceResponse = await fetch(
-        'http://localhost:5000/api/zsmart_branch_requests/get_account_number_by_reference_number',
+        `${API_BASE_URL}/api/zsmart_branch_requests/get_account_number_by_reference_number`,
         {
           method: 'POST',
           headers: {
@@ -919,7 +920,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
 
 
-      const response = await fetch('http://localhost:5000/api/zsmart_branch_requests/edit_smart_branch_request', {
+      const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/edit_smart_branch_request`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -946,7 +947,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     }
 
     try {
-      const response = await fetch('http://localhost:5000/api/zsmart_branch_requests/delete_smart_branch_request', {
+      const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/delete_smart_branch_request`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
