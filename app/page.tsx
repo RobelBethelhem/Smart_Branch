@@ -148,7 +148,7 @@ const [firstName, setFirstName] = useState('');
 const [searchName, setSearchName] = useState('');
 const [accountResults, setAccountResults] = useState<Array<{
   CUST_AC_NO: string;
-  CUST_AC_NO_FULL?: string;
+  encryptedToken?: string;
   ACC_DESC: string;
   CCY: string;
 }>>([]);
@@ -169,7 +169,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [pendingAccountData, setPendingAccountData] = useState<AccountData | null>(null);
   const [showAuthMethodSelection, setShowAuthMethodSelection] = useState(false);
   const [showOTPVerification, setShowOTPVerification] = useState(false);
-  const [selectedAccountForAuth, setSelectedAccountForAuth] = useState<{accountNumber: string, accountName: string, cif: string} | null>(null);
+  const [selectedAccountForAuth, setSelectedAccountForAuth] = useState<{encryptedToken: string, accountName: string, maskedAccountNumber: string} | null>(null);
   const [otpMaskedPhone, setOtpMaskedPhone] = useState<string>('');
   const [showMainDashboard, setShowMainDashboard] = useState(false);
   const [showTransactionMap, setShowTransactionMap] = useState(false);
@@ -537,29 +537,22 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
 
 
-  const handleAccountSelect = async (selectedAccountNumber: string) => {
+  const handleAccountSelect = async (selectedMaskedAccount: string) => {
     setShowAccountSelection(false);
 
-    // Find the account in results to get the full (unmasked) account number
-    const account = accountResults.find(acc => acc.CUST_AC_NO === selectedAccountNumber);
-    const fullAccountNumber = account?.CUST_AC_NO_FULL || selectedAccountNumber;
+    // Find the account in results to get the encrypted token
+    const account = accountResults.find(acc => acc.CUST_AC_NO === selectedMaskedAccount);
+    const encryptedToken = account?.encryptedToken || '';
     const accountName = account?.ACC_DESC || '';
 
-    // Use full account number for internal state (display masked in UI)
-    setAccountNumber(fullAccountNumber);
+    // Store masked account for display only
+    setAccountNumber(selectedMaskedAccount);
 
-    // Extract CIF from full account number
-    let cif = '';
-    if (fullAccountNumber.length === 16) {
-      const withoutLast3 = fullAccountNumber.slice(0, -3);
-      cif = withoutLast3.slice(-7);
-    }
-
-    // Store selected account info with full account number for auth flows
+    // Store encrypted token for auth flows — full account number never reaches the browser
     setSelectedAccountForAuth({
-      accountNumber: fullAccountNumber,
+      encryptedToken: encryptedToken,
       accountName: accountName,
-      cif: cif
+      maskedAccountNumber: selectedMaskedAccount
     });
     setShowAuthMethodSelection(true);
   };
@@ -578,13 +571,13 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ accountNumber: selectedAccountForAuth.accountNumber }),
+          body: JSON.stringify({ encryptedToken: selectedAccountForAuth.encryptedToken }),
         });
 
         const result = await response.json();
 
         if (result.success) {
-          const transactionsResponse = await fetch(`/api/transactions?accountNumber=${selectedAccountForAuth.accountNumber}`);
+          const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth.encryptedToken)}`);
           const transactionsResult = await transactionsResponse.json();
 
           if (transactionsResponse.ok) {
@@ -617,12 +610,12 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       // Generate and send OTP
       setLoading(true);
       try {
-        const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/generate-otp`, {
+        const response = await fetch('/api/otp/generate', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
-          body: JSON.stringify({ account_number: selectedAccountForAuth.accountNumber }),
+          body: JSON.stringify({ encryptedToken: selectedAccountForAuth.encryptedToken }),
         });
 
         const result = await response.json();
@@ -667,19 +660,19 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setError(null);
 
     try {
-      // Verify the account to get full account data
+      // Verify the account to get full account data using encrypted token
       const response = await fetch('/api/account/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ accountNumber: selectedAccountForAuth.accountNumber }),
+        body: JSON.stringify({ encryptedToken: selectedAccountForAuth.encryptedToken }),
       });
 
       const result = await response.json();
 
       if (result.success) {
-        const transactionsResponse = await fetch(`/api/transactions?accountNumber=${selectedAccountForAuth.accountNumber}`);
+        const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth.encryptedToken)}`);
         const transactionsResult = await transactionsResponse.json();
 
         if (transactionsResponse.ok) {
@@ -715,8 +708,9 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setLoading(true);
     setError(null);
 
-    // If we have selectedAccountForAuth, use that specific account instead of the one from fingerprint
-    const accountToUse = selectedAccountForAuth?.accountNumber || selectedAccountNumber;
+    // If we have selectedAccountForAuth (name/phone search flow), use encrypted token
+    // Otherwise use the account number returned from fingerprint auth (direct fingerprint login)
+    const hasEncryptedToken = !!selectedAccountForAuth?.encryptedToken;
 
     try {
       // Verify the account to get full account data
@@ -725,14 +719,22 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ accountNumber: accountToUse }),
+        body: JSON.stringify(
+          hasEncryptedToken
+            ? { encryptedToken: selectedAccountForAuth!.encryptedToken }
+            : { accountNumber: selectedAccountNumber }
+        ),
       });
 
       const result = await response.json();
 
       if (result.success && result.data) {
         // Fetch transactions for the account
-        const transactionsResponse = await fetch(`/api/transactions?accountNumber=${selectedAccountNumber}`);
+        const transactionsResponse = await fetch(
+          hasEncryptedToken
+            ? `/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth!.encryptedToken)}`
+            : `/api/transactions?accountNumber=${selectedAccountNumber}`
+        );
         const transactionsResult = await transactionsResponse.json();
 
         const accountDataWithTransactions = {
@@ -2687,14 +2689,14 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           <FingerprintVerificationModal
             onClose={handleFingerprintClose}
             onSuccess={handleFingerprintSuccess}
-            cif={selectedAccountForAuth?.cif}
+            encryptedToken={selectedAccountForAuth?.encryptedToken}
           />
         )}
         {showAuthMethodSelection && selectedAccountForAuth && (
           <AuthMethodSelectionModal
             onClose={() => setShowAuthMethodSelection(false)}
             onSelectMethod={handleAuthMethodSelect}
-            accountNumber={selectedAccountForAuth.accountNumber}
+            maskedAccountNumber={selectedAccountForAuth.maskedAccountNumber}
             accountName={selectedAccountForAuth.accountName}
           />
         )}
@@ -2702,7 +2704,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           <OTPVerificationModal
             onClose={() => setShowOTPVerification(false)}
             onSuccess={handleOTPSuccess}
-            accountNumber={selectedAccountForAuth.accountNumber}
+            encryptedToken={selectedAccountForAuth.encryptedToken}
             maskedPhone={otpMaskedPhone}
           />
         )}

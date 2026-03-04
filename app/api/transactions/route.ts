@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import oracledb, { Connection, ExecuteOptions, NUMBER, DATE, Result } from 'oracledb';
 import { dbConfig } from '@/lib/dbConfig';
 import { executeQuery } from '@/lib/db';
+import { decryptAccountToken } from '@/lib/accountEncryption';
 
 interface TransactionRow {
   TRN_REF_NO: string;
@@ -308,12 +309,25 @@ interface TransactionType {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const accountNumber = searchParams.get('accountNumber');
+  let accountNumber = searchParams.get('accountNumber');
+  const encryptedToken = searchParams.get('encryptedToken');
+
+  // Decrypt encrypted token if provided
+  if (!accountNumber && encryptedToken) {
+    try {
+      accountNumber = decryptAccountToken(encryptedToken);
+    } catch (err) {
+      return NextResponse.json({
+        success: false,
+        message: 'Invalid or expired account token'
+      }, { status: 400 });
+    }
+  }
 
   if (!accountNumber) {
-    return NextResponse.json({ 
-      success: false, 
-      message: 'Account number is required' 
+    return NextResponse.json({
+      success: false,
+      message: 'Account number is required'
     }, { status: 400 });
   }
 

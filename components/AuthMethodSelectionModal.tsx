@@ -7,22 +7,14 @@ import { FiX } from 'react-icons/fi';
 interface AuthMethodSelectionModalProps {
   onClose: () => void;
   onSelectMethod: (method: 'face' | 'fingerprint' | 'otp') => void;
-  accountNumber: string;
+  maskedAccountNumber: string;
   accountName: string;
 }
-
-// Mask account number for display: show first 4 and last 4 digits
-const maskForDisplay = (acc: string) => {
-  if (acc.length >= 10 && /^\d+$/.test(acc)) {
-    return acc.slice(0, 4) + '****' + acc.slice(-4);
-  }
-  return acc; // Already masked or short
-};
 
 const AuthMethodSelectionModal: React.FC<AuthMethodSelectionModalProps> = ({
   onClose,
   onSelectMethod,
-  accountNumber,
+  maskedAccountNumber,
   accountName
 }) => {
   return (
@@ -50,7 +42,7 @@ const AuthMethodSelectionModal: React.FC<AuthMethodSelectionModalProps> = ({
           </button>
           <h2 className="text-2xl font-bold">Choose Authentication Method</h2>
           <p className="text-white/90 mt-2 text-sm">
-            Account: {maskForDisplay(accountNumber)}
+            Account: {maskedAccountNumber}
           </p>
           <p className="text-white/90 text-sm">
             {accountName}

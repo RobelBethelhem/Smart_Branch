@@ -3,19 +3,17 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FiX, FiCheck, FiAlertCircle, FiLoader } from 'react-icons/fi';
-import { API_BASE_URL } from '@/config/environment';
-
 interface OTPVerificationModalProps {
   onClose: () => void;
   onSuccess: () => void;
-  accountNumber: string;
+  encryptedToken: string;
   maskedPhone?: string;
 }
 
 const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
   onClose,
   onSuccess,
-  accountNumber,
+  encryptedToken,
   maskedPhone
 }) => {
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
@@ -104,13 +102,13 @@ const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/verify-otp`, {
+      const response = await fetch('/api/otp/verify', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          account_number: accountNumber,
+          encryptedToken,
           otp_code: otpCode
         }),
       });
@@ -138,13 +136,13 @@ const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
     setError('');
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/generate-otp`, {
+      const response = await fetch('/api/otp/generate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          account_number: accountNumber
+          encryptedToken
         }),
       });
 

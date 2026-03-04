@@ -3,8 +3,6 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiCheck, FiAlertCircle } from 'react-icons/fi';
-import { API_BASE_URL } from '@/config/environment';
-
 const FINGERPRINT_SERVICE_URL = 'ws://localhost:8089';
 
 interface FingerprintAccount {
@@ -23,13 +21,13 @@ interface FingerprintAuthResult {
 interface FingerprintVerificationModalProps {
   onClose: () => void;
   onSuccess: (accountNumber: string, customerName: string) => void;
-  cif?: string; // Optional CIF to verify specific customer only
+  encryptedToken?: string; // Optional encrypted token to verify specific customer only
 }
 
 const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> = ({
   onClose,
   onSuccess,
-  cif,
+  encryptedToken,
 }) => {
   const [status, setStatus] = useState<'connecting' | 'ready' | 'scanning' | 'verifying' | 'success' | 'error'>('connecting');
   const [message, setMessage] = useState('Connecting to fingerprint scanner...');
@@ -181,16 +179,16 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
 
   const authenticateFingerprint = async (template: string) => {
     try {
-      const requestBody: {fingerprint_template: string, cif?: string} = {
+      const requestBody: {fingerprint_template: string, encryptedToken?: string} = {
         fingerprint_template: template
       };
 
-      // If CIF is provided, only check against that specific customer
-      if (cif) {
-        requestBody.cif = cif;
+      // If encrypted token is provided, server will decrypt and extract CIF
+      if (encryptedToken) {
+        requestBody.encryptedToken = encryptedToken;
       }
 
-      const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/biometric/authenticate`, {
+      const response = await fetch('/api/biometric/authenticate', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { executeQuery } from "@/lib/db";
 import { AccountData } from "@/types/account";
 import oracledb from 'oracledb';
+import { encryptAccountNumber, decryptAccountToken } from '@/lib/accountEncryption';
 
 // Define the DatabaseRow interface
 interface DatabaseRow {
@@ -59,7 +60,20 @@ export async function POST(request: Request) {
       }, { status: 429 });
     }
 
-    const { accountNumber , searchName, firstName, phoneNumber} = await request.json();
+    const { accountNumber: rawAccountNumber, searchName, firstName, phoneNumber, encryptedToken } = await request.json();
+
+    // If encryptedToken provided, decrypt to get the real account number
+    let accountNumber = rawAccountNumber;
+    if (encryptedToken && !rawAccountNumber) {
+      try {
+        accountNumber = decryptAccountToken(encryptedToken);
+      } catch (err) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid or expired account token. Please search again.'
+        }, { status: 400 });
+      }
+    }
 
     let query;
     let params;
@@ -206,7 +220,7 @@ export async function POST(request: Request) {
         // Return masked account data for search results - no balance, no images
         const accounts = result.data.slice(0, 5).map((row: any) => ({
           CUST_AC_NO: maskAccountNumber(row.CUST_AC_NO),
-          CUST_AC_NO_FULL: row.CUST_AC_NO,
+          encryptedToken: encryptAccountNumber(row.CUST_AC_NO),
           ACC_DESC: row.ACC_DESC,
           CCY: row.CCY,
           FIRST_NAME: row.FIRST_NAME
