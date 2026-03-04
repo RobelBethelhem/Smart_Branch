@@ -6,6 +6,7 @@ import SuccessModal from './SuccessModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import BranchServiceModal from './BranchServiceModal';
 import { decryptResponse } from '@/utils/responseDecryption';
+import { encryptPayload } from '@/utils/requestEncryption';
 
 interface TransferComponentProps {
   onBack: () => void;
@@ -304,7 +305,7 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(transferData),
+        body: JSON.stringify({ encrypted: await encryptPayload(transferData) }),
       }).then(res => res.json());
 
       if (!result.error) {
@@ -356,7 +357,7 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(transferData),
+        body: JSON.stringify({ encrypted: await encryptPayload(transferData) }),
       }).then(res => res.json());
 
       if (!result.error) {

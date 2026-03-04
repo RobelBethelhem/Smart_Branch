@@ -5,6 +5,7 @@ import SignatureModal from './SignatureModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import SuccessModal from './SuccessModal';
 import BranchServiceModal from './BranchServiceModal';
+import { encryptPayload } from '@/utils/requestEncryption';
 
 
 
@@ -176,7 +177,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(withdrawData),
+        body: JSON.stringify({ encrypted: await encryptPayload(withdrawData) }),
       }).then(res => res.json());
 
       if (!result.error) {
@@ -222,7 +223,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(withdrawData),
+        body: JSON.stringify({ encrypted: await encryptPayload(withdrawData) }),
       }).then(res => res.json());
 
       if (!result.error) {

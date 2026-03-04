@@ -6,6 +6,7 @@ import SuccessModal from './SuccessModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import BranchServiceModal from './BranchServiceModal';
 import { decryptResponse } from '@/utils/responseDecryption';
+import { encryptPayload } from '@/utils/requestEncryption';
 
 interface OtherBankTransferComponentProps {
   onBack: () => void;
@@ -190,7 +191,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(transferData),
+        body: JSON.stringify({ encrypted: await encryptPayload(transferData) }),
       }).then(res => res.json());
 
       if (!result.error) {
@@ -245,7 +246,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(transferData),
+        body: JSON.stringify({ encrypted: await encryptPayload(transferData) }),
       }).then(res => res.json());
 
       if (!result.error) {

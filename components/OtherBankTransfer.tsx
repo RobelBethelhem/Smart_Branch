@@ -5,6 +5,7 @@ import SignatureVerificationModal from "./SignatureVerificationModal";
 import SignatureModal from "./SignatureModal";
 import base64 from 'base64-js';
 import SuccessModal from "./SuccessModal";
+import { encryptPayload } from '@/utils/requestEncryption';
 
 const numberToWords = (num: number): string => {
     const belowTwenty = [
@@ -134,7 +135,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(transferData),
+        body: JSON.stringify({ encrypted: await encryptPayload(transferData) }),
       }).then(res => res.json());
 
       if (!result.error) {

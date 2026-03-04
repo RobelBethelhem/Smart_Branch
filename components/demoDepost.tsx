@@ -7,6 +7,7 @@ import SignatureVerificationModal from "./SignatureVerificationModal";
 import { API } from '../utils/api';
 import base64 from 'base64-js';
 import { decryptResponse } from '@/utils/responseDecryption';
+import { encryptPayload } from '@/utils/requestEncryption';
 
 // Utility function to convert numbers to words
 const numberToWords = (num: number): string => {
@@ -177,7 +178,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(depositData),
+        body: JSON.stringify({ encrypted: await encryptPayload(depositData) }),
       }).then(res => res.json());
       
       if (!result.error) {

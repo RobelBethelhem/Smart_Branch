@@ -5,6 +5,7 @@ import SignatureModal from './SignatureModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import SuccessModal from './SuccessModal';
 import BranchServiceModal from './BranchServiceModal';
+import { encryptPayload } from '@/utils/requestEncryption';
 
 
 
@@ -198,7 +199,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(eCheckData),
+        body: JSON.stringify({ encrypted: await encryptPayload(eCheckData) }),
       }).then(res => res.json());
 
       if (!result.error) {
@@ -246,7 +247,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(eCheckData),
+        body: JSON.stringify({ encrypted: await encryptPayload(eCheckData) }),
       }).then(res => res.json());
 
       if (!result.error) {
