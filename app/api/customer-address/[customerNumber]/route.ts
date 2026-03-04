@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { executeQuery } from '@/lib/db';
+import { encryptResponse } from '@/lib/responseEncryption';
 
 interface Params {
   customerNumber: string;
@@ -39,7 +40,7 @@ export async function GET(
 
     return NextResponse.json({
       success: true,
-      address: result.data[0]
+      encrypted: encryptResponse(result.data[0])
     });
 
   } catch (error) {

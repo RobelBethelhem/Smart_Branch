@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { executeQuery } from "@/lib/db";
+import { encryptResponse } from '@/lib/responseEncryption';
 
 export async function POST(req: Request) {
   try {
@@ -30,7 +31,7 @@ export async function POST(req: Request) {
 
       return NextResponse.json({
         success: true,
-        accounts
+        encrypted: encryptResponse(accounts)
       });
     } else {
       return NextResponse.json({

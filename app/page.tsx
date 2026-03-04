@@ -360,8 +360,9 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           });
   
           const result = await response.json();
-          if (result.success) {
-            setUserAccounts(result.accounts);
+          if (result.success && result.encrypted) {
+            const decrypted = await decryptResponse(result.encrypted);
+            setUserAccounts(decrypted);
           }
         } catch (error) {
           console.error('Error fetching user accounts:', error);

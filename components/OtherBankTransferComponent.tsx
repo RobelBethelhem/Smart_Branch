@@ -5,6 +5,7 @@ import SignatureModal from './SignatureModal';
 import SuccessModal from './SuccessModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import BranchServiceModal from './BranchServiceModal';
+import { decryptResponse } from '@/utils/responseDecryption';
 
 interface OtherBankTransferComponentProps {
   onBack: () => void;
@@ -134,7 +135,10 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
       const response = await fetch(`/api/customer-address/${customerNumber}`);
       const data = await response.json();
       if (process.env.NODE_ENV === 'development') console.log('Address response:', data);
-      return data.success ? data.address : null;
+      if (data.success && data.encrypted) {
+        return await decryptResponse(data.encrypted);
+      }
+      return null;
     } catch (error) {
       console.error('Error fetching address:', error);
       return null;

@@ -6,6 +6,7 @@ import SuccessModal from "./SuccessModal";
 import SignatureVerificationModal from "./SignatureVerificationModal";
 import { API } from '../utils/api';
 import base64 from 'base64-js';
+import { decryptResponse } from '@/utils/responseDecryption';
 
 // Utility function to convert numbers to words
 const numberToWords = (num: number): string => {
@@ -129,7 +130,10 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
       const response = await fetch(`/api/customer-address/${customerNumber}`);
       const data = await response.json();
       console.log('Address response:', data);
-      return data.success ? data.address : null;
+      if (data.success && data.encrypted) {
+        return await decryptResponse(data.encrypted);
+      }
+      return null;
     } catch (error) {
       console.error('Error fetching address:', error);
       return null;
