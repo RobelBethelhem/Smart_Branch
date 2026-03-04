@@ -1,15 +1,39 @@
 import crypto from 'crypto';
+import fs from 'fs';
+import path from 'path';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 12;
 
+// Cache the key once loaded
+let _cachedKey: Buffer | null = null;
+
 function getResponseKey(): Buffer {
-  const key = process.env.RESPONSE_ENCRYPTION_KEY;
-  console.log('DEBUG RESPONSE_ENCRYPTION_KEY:', key ? `"${key}" (length=${key.length})` : 'UNDEFINED');
+  if (_cachedKey) return _cachedKey;
+
+  let key = process.env.RESPONSE_ENCRYPTION_KEY;
+
+  // Fallback: read directly from .env.local if process.env doesn't have it
+  if (!key) {
+    try {
+      const envPath = path.resolve(process.cwd(), '.env.local');
+      const envContent = fs.readFileSync(envPath, 'utf-8');
+      const match = envContent.match(/^RESPONSE_ENCRYPTION_KEY=(.+)$/m);
+      if (match) {
+        key = match[1].trim();
+        console.log('RESPONSE_ENCRYPTION_KEY loaded from .env.local file directly');
+      }
+    } catch (e) {
+      // ignore file read errors
+    }
+  }
+
   if (!key || key.length !== 64) {
     throw new Error(`RESPONSE_ENCRYPTION_KEY must be a 64-char hex string (got: ${key ? `length=${key.length}` : 'undefined'})`);
   }
-  return Buffer.from(key, 'hex');
+
+  _cachedKey = Buffer.from(key, 'hex');
+  return _cachedKey;
 }
 
 /**
