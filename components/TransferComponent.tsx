@@ -5,6 +5,7 @@ import SignatureModal from './SignatureModal';
 import SuccessModal from './SuccessModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import BranchServiceModal from './BranchServiceModal';
+import { decryptResponse } from '@/utils/responseDecryption';
 
 interface TransferComponentProps {
   onBack: () => void;
@@ -183,8 +184,9 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
 
       const data = await response.json();
 
-      if (data.success) {
-        return data.data as AccountData;
+      if (data.success && data.encrypted) {
+        const decrypted = await decryptResponse(data.encrypted);
+        return decrypted as AccountData;
       } else {
         throw new Error(data.message || 'Account not found');
       }

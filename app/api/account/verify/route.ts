@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { executeQuery } from "@/lib/db";
 import { AccountData } from "@/types/account";
 import oracledb from 'oracledb';
+import { encryptResponse } from '@/lib/responseEncryption';
 const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://localhost:5000';
 
 // Define the DatabaseRow interface
@@ -307,7 +308,7 @@ export async function POST(request: Request) {
 
       return NextResponse.json({
         success: true,
-        data: accountData
+        encrypted: encryptResponse(accountData)
       });
     } else {
       return NextResponse.json({

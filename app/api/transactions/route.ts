@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import oracledb, { Connection, ExecuteOptions, NUMBER, DATE, Result } from 'oracledb';
 import { dbConfig } from '@/lib/dbConfig';
 import { executeQuery } from '@/lib/db';
+import { encryptResponse } from '@/lib/responseEncryption';
 const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://localhost:5000';
 
 interface TransactionRow {
@@ -279,14 +280,16 @@ where value_dt>=to_date(trunc(:DateFrom))
 
     return NextResponse.json({
       success: true,
-      transactions: transformedRows,
-      openingBalance: parseFloat(openingBalance.toString()),
-      pagination: {
-        page: page || 1,
-        limit: limit || 10,
-        total: rows.length,
-        totalPages: Math.ceil(rows.length / (limit || 10))
-      }
+      encrypted: encryptResponse({
+        transactions: transformedRows,
+        openingBalance: parseFloat(openingBalance.toString()),
+        pagination: {
+          page: page || 1,
+          limit: limit || 10,
+          total: rows.length,
+          totalPages: Math.ceil(rows.length / (limit || 10))
+        }
+      })
     });
 
   } catch (error) {
@@ -358,7 +361,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
-      data: result.data
+      encrypted: encryptResponse(result.data)
     });
 
   } catch (error) {

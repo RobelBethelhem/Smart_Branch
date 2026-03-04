@@ -5,6 +5,7 @@ import { FiCalendar, FiDownload, FiFilter, FiChevronDown } from 'react-icons/fi'
 import DatePicker from 'react-datepicker';
 import "react-datepicker/dist/react-datepicker.css";
 import { Transaction } from '@/types/account';
+import { decryptResponse } from '@/utils/responseDecryption';
 
 interface MiniStatementProps {
     onBack: () => void;
@@ -478,10 +479,11 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
 
       const data = await response.json();
 
-      if (data.success) {
-        setTransactions(data.transactions);
-        setTotalPages(data.pagination.totalPages);
-        setSummaryStats(calculateSummaryStats(data.transactions, data.openingBalance));
+      if (data.success && data.encrypted) {
+        const decrypted = await decryptResponse(data.encrypted);
+        setTransactions(decrypted.transactions);
+        setTotalPages(decrypted.pagination.totalPages);
+        setSummaryStats(calculateSummaryStats(decrypted.transactions, decrypted.openingBalance));
       } else {
         setError(data.message || 'Failed to fetch transactions');
       }

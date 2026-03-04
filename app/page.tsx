@@ -36,6 +36,7 @@ import BranchSelection from '@/components/BranchSelection';
 import { AnimatePresence } from 'framer-motion';
 import numberToWords from '@/utils/numberToWordConverter'
 import { API_BASE_URL } from '@/config/environment';
+import { decryptResponse } from '@/utils/responseDecryption';
 
 
 
@@ -487,20 +488,24 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   
       if (result.success) {
         if (result.isNameSearch) {
+          // Name/phone search results are NOT encrypted (just masked account numbers)
           setAccountResults(result.data);
           setShowAccountSelection(true);
-        } else {
+        } else if (result.encrypted) {
+          // Direct account number search — response is encrypted
+          const accountData = await decryptResponse(result.encrypted);
           const transactionsResponse = await fetch(`/api/transactions?accountNumber=${
-            searchType === 'account' ? accountNumber : result.data.CUST_AC_NO
+            searchType === 'account' ? accountNumber : accountData.CUST_AC_NO
           }`);
           const transactionsResult = await transactionsResponse.json();
-          
-          if (transactionsResponse.ok) {
+
+          if (transactionsResponse.ok && transactionsResult.encrypted) {
+            const transactionsData = await decryptResponse(transactionsResult.encrypted);
             const accountDataWithTransactions = {
-              ...result.data,
-              transactions: transactionsResult.data
+              ...accountData,
+              transactions: transactionsData
             };
-  
+
             if (accountDataWithTransactions.PROFILE_IMAGE) {
               setPendingAccountData(accountDataWithTransactions);
               setShowFaceVerification(true);
@@ -576,14 +581,16 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
         const result = await response.json();
 
-        if (result.success) {
+        if (result.success && result.encrypted) {
+          const accountData = await decryptResponse(result.encrypted);
           const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth.encryptedToken)}`);
           const transactionsResult = await transactionsResponse.json();
 
-          if (transactionsResponse.ok) {
+          if (transactionsResponse.ok && transactionsResult.encrypted) {
+            const transactionsData = await decryptResponse(transactionsResult.encrypted);
             const accountDataWithTransactions = {
-              ...result.data,
-              transactions: transactionsResult.data
+              ...accountData,
+              transactions: transactionsData
             };
 
             if (accountDataWithTransactions.PROFILE_IMAGE) {
@@ -671,14 +678,16 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
       const result = await response.json();
 
-      if (result.success) {
+      if (result.success && result.encrypted) {
+        const accountData = await decryptResponse(result.encrypted);
         const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth.encryptedToken)}`);
         const transactionsResult = await transactionsResponse.json();
 
-        if (transactionsResponse.ok) {
+        if (transactionsResponse.ok && transactionsResult.encrypted) {
+          const transactionsData = await decryptResponse(transactionsResult.encrypted);
           setAccountData({
-            ...result.data,
-            transactions: transactionsResult.data
+            ...accountData,
+            transactions: transactionsData
           });
           setShowDashboard(true);
         } else {
@@ -728,7 +737,8 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
       const result = await response.json();
 
-      if (result.success && result.data) {
+      if (result.success && result.encrypted) {
+        const accountData = await decryptResponse(result.encrypted);
         // Fetch transactions for the account
         const transactionsResponse = await fetch(
           hasEncryptedToken
@@ -737,13 +747,17 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         );
         const transactionsResult = await transactionsResponse.json();
 
+        let transactionsData = [];
+        if (transactionsResult.encrypted) {
+          transactionsData = await decryptResponse(transactionsResult.encrypted);
+        }
+
         const accountDataWithTransactions = {
-          ...result.data,
-          transactions: transactionsResult.data || []
+          ...accountData,
+          transactions: transactionsData || []
         };
 
         // Set account data first - this will trigger dashboard to show
-        // (dashboard condition only requires accountData, not showDashboard)
         setAccountData(accountDataWithTransactions);
         setShowDashboard(true);
         setLastActivity(Date.now());
@@ -820,20 +834,22 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   
      
   
-      if (!verifyData.success || !verifyData.data) {
+      if (!verifyData.success || !verifyData.encrypted) {
         throw new Error('Account verification failed');
       }
 
+      const decryptedAccountData = await decryptResponse(verifyData.encrypted);
+
       const transactionsResponse = await fetch(`/api/transactions?accountNumber=${
-        searchType === 'account' ? accountNumber : verifyData.data.CUST_AC_NO
+        searchType === 'account' ? accountNumber : decryptedAccountData.CUST_AC_NO
       }`);
       const transactionsResult = await transactionsResponse.json();
 
-
-      if (transactionsResponse.ok) {
+      if (transactionsResponse.ok && transactionsResult.encrypted) {
+        const transactionsData = await decryptResponse(transactionsResult.encrypted);
         const accountDataWithTransactions = {
-          ...verifyData.data,
-          transactions: transactionsResult.data
+          ...decryptedAccountData,
+          transactions: transactionsData
         };
 
         if (accountDataWithTransactions.PROFILE_IMAGE) {
@@ -2309,8 +2325,9 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   });
 
                   const result = await response.json();
-                  if (result.success) {
-                    setAccountData(result.data);
+                  if (result.success && result.encrypted) {
+                    const decryptedData = await decryptResponse(result.encrypted);
+                    setAccountData(decryptedData);
                     setSelectedAccountIndex(index);
                   }
                 } catch (error) {
