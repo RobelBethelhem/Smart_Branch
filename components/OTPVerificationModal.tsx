@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FiX, FiCheck, FiAlertCircle, FiLoader } from 'react-icons/fi';
+import { API_BASE_URL } from '@/config/environment';
+
 interface OTPVerificationModalProps {
   onClose: () => void;
   onSuccess: () => void;
@@ -102,7 +104,7 @@ const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
     setError('');
 
     try {
-      const response = await fetch('/api/otp/verify', {
+      const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/verify-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -136,7 +138,7 @@ const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
     setError('');
 
     try {
-      const response = await fetch('/api/otp/generate', {
+      const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/generate-otp`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

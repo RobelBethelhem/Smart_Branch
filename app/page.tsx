@@ -610,7 +610,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       // Generate and send OTP
       setLoading(true);
       try {
-        const response = await fetch('/api/otp/generate', {
+        const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/generate-otp`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',

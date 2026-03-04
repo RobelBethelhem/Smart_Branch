@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import oracledb, { Connection, ExecuteOptions, NUMBER, DATE, Result } from 'oracledb';
 import { dbConfig } from '@/lib/dbConfig';
 import { executeQuery } from '@/lib/db';
-import { decryptAccountToken } from '@/lib/accountEncryption';
+const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://10.1.1.181:5000';
 
 interface TransactionRow {
   TRN_REF_NO: string;
@@ -312,10 +312,22 @@ export async function GET(request: Request) {
   let accountNumber = searchParams.get('accountNumber');
   const encryptedToken = searchParams.get('encryptedToken');
 
-  // Decrypt encrypted token if provided
+  // Call Express backend to decrypt token if provided
   if (!accountNumber && encryptedToken) {
     try {
-      accountNumber = decryptAccountToken(encryptedToken);
+      const decryptResponse = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/decrypt-token`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ encryptedToken }),
+      });
+      const decryptResult = await decryptResponse.json();
+      if (decryptResult.error || !decryptResult.accountNumber) {
+        return NextResponse.json({
+          success: false,
+          message: 'Invalid or expired account token'
+        }, { status: 400 });
+      }
+      accountNumber = decryptResult.accountNumber;
     } catch (err) {
       return NextResponse.json({
         success: false,

@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiCheck, FiAlertCircle } from 'react-icons/fi';
+import { API_BASE_URL } from '@/config/environment';
+
 const FINGERPRINT_SERVICE_URL = 'ws://localhost:8089';
 
 interface FingerprintAccount {
@@ -188,7 +190,7 @@ const FingerprintVerificationModal: React.FC<FingerprintVerificationModalProps> 
         requestBody.encryptedToken = encryptedToken;
       }
 
-      const response = await fetch('/api/biometric/authenticate', {
+      const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/biometric/authenticate`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

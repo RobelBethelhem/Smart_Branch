@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { executeQuery } from "@/lib/db";
 import { AccountData } from "@/types/account";
 import oracledb from 'oracledb';
-import { encryptAccountNumber, decryptAccountToken } from '@/lib/accountEncryption';
+const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://10.1.1.181:5000';
 
 // Define the DatabaseRow interface
 interface DatabaseRow {
@@ -62,11 +62,23 @@ export async function POST(request: Request) {
 
     const { accountNumber: rawAccountNumber, searchName, firstName, phoneNumber, encryptedToken } = await request.json();
 
-    // If encryptedToken provided, decrypt to get the real account number
+    // If encryptedToken provided, call Express backend to decrypt
     let accountNumber = rawAccountNumber;
     if (encryptedToken && !rawAccountNumber) {
       try {
-        accountNumber = decryptAccountToken(encryptedToken);
+        const decryptResponse = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/decrypt-token`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ encryptedToken }),
+        });
+        const decryptResult = await decryptResponse.json();
+        if (decryptResult.error || !decryptResult.accountNumber) {
+          return NextResponse.json({
+            success: false,
+            message: 'Invalid or expired account token. Please search again.'
+          }, { status: 400 });
+        }
+        accountNumber = decryptResult.accountNumber;
       } catch (err) {
         return NextResponse.json({
           success: false,
@@ -204,31 +216,27 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    // Only include fetchInfo for account number queries that select PROFILE_IMAGE/SIGN_IMAGE
+    const queryOptions: any = {};
+    if (accountNumber && !searchName && !(firstName && phoneNumber)) {
+      queryOptions.fetchInfo = {
+        PROFILE_IMAGE: { type: oracledb.STRING },
+        SIGN_IMAGE: { type: oracledb.STRING }
+      };
+    }
+
     const result = await executeQuery(
       query,
       params,
-      {
-        fetchInfo: {
-          PROFILE_IMAGE: { type: oracledb.STRING },
-          SIGN_IMAGE: { type: oracledb.STRING }
-        }
-      }
+      queryOptions
     );
 
      if (result.success && result.data && result.data.length > 0) {
       if (searchName || (firstName && phoneNumber)) {
-        // Return masked account data for search results - no balance, no images
-        const accounts = result.data.slice(0, 5).map((row: any) => ({
-          CUST_AC_NO: maskAccountNumber(row.CUST_AC_NO),
-          encryptedToken: encryptAccountNumber(row.CUST_AC_NO),
-          ACC_DESC: row.ACC_DESC,
-          CCY: row.CCY,
-          FIRST_NAME: row.FIRST_NAME
-        }));
-
-        // For phone & name search, verify first name match
+        // For phone & name search, verify first name match first
         if (firstName && phoneNumber) {
-          const matchingFirstName = accounts[0].FIRST_NAME?.trim().toLowerCase() === sanitizeSearchInput(firstName).trim().toLowerCase();
+          const firstRow = result.data[0];
+          const matchingFirstName = firstRow.FIRST_NAME?.trim().toLowerCase() === sanitizeSearchInput(firstName).trim().toLowerCase();
           if (!matchingFirstName) {
             return NextResponse.json({
               success: false,
@@ -236,6 +244,40 @@ export async function POST(request: Request) {
             }, { status: 400 });
           }
         }
+
+        // Collect account numbers and call Express to encrypt them
+        const rawAccounts = result.data.slice(0, 5);
+        const accountNumbers = rawAccounts.map((row: any) => row.CUST_AC_NO);
+
+        let encryptedTokens: string[] = [];
+        try {
+          const encryptResponse = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/encrypt-tokens`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ accountNumbers }),
+          });
+          const encryptResult = await encryptResponse.json();
+          if (!encryptResult.error && encryptResult.tokens) {
+            encryptedTokens = encryptResult.tokens;
+          } else {
+            throw new Error('Encryption failed');
+          }
+        } catch (err) {
+          console.error('Token encryption error:', err);
+          return NextResponse.json({
+            success: false,
+            message: 'Failed to process account data'
+          }, { status: 500 });
+        }
+
+        // Return masked account data for search results - no balance, no images
+        const accounts = rawAccounts.map((row: any, index: number) => ({
+          CUST_AC_NO: maskAccountNumber(row.CUST_AC_NO),
+          encryptedToken: encryptedTokens[index],
+          ACC_DESC: row.ACC_DESC || row.AC_DESC,
+          CCY: row.CCY,
+          FIRST_NAME: row.FIRST_NAME
+        }));
 
         return NextResponse.json({
           success: true,
