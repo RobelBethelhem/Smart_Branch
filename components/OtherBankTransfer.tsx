@@ -111,7 +111,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferProps> = ({
     setIsProcessing(true);
 
     try {
-      const uniqueNumber = Math.floor(100000 + Math.random() * 900000).toString();
+      const uniqueNumber = String(crypto.getRandomValues(new Uint32Array(1))[0]).slice(0, 8).padStart(8, '0');
       
       const transferData = {
         acc_holder_name: accountName,

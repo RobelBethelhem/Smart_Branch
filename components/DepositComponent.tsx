@@ -67,8 +67,8 @@ const extractCustomerNumber = (accountNumber: string): string => {
 };
 
 const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, storedSignature, accountNumber, accountName }) => {
-  console.log('Account Number:', accountNumber);
-  console.log('Account Name:', accountName);
+  if (process.env.NODE_ENV === 'development') console.log('Account Number:', accountNumber);
+  if (process.env.NODE_ENV === 'development') console.log('Account Name:', accountName);
   const isSubmittingRef = useRef(false);
 
   const [amount, setAmount] = useState('');
@@ -128,11 +128,11 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
       // Extract customer number from account number
       if (!accountNumber) return null;
       const customerNumber = accountNumber.substring(6, 13);
-      console.log('Extracted customer number:', customerNumber);
+      if (process.env.NODE_ENV === 'development') console.log('Extracted customer number:', customerNumber);
       
       const response = await fetch(`/api/customer-address/${customerNumber}`);
       const data = await response.json();
-      console.log('Address response:', data);
+      if (process.env.NODE_ENV === 'development') console.log('Address response:', data);
       return data.success ? data.address : null;
     } catch (error) {
       console.error('Error fetching address:', error);
@@ -156,7 +156,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
     
     try {
       const addressData = await fetchDepositorAddress();
-      const uniqueNumber = Math.floor(100000 + Math.random() * 900000).toString();
+      const uniqueNumber = String(crypto.getRandomValues(new Uint32Array(1))[0]).slice(0, 8).padStart(8, '0');
       const branchCode = localStorage.getItem('branchCode') || '';
       
       const depositData = {
@@ -214,7 +214,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
     
     try {
       const addressData = await fetchDepositorAddress();
-      const uniqueNumber = Math.floor(100000 + Math.random() * 900000).toString();
+      const uniqueNumber = String(crypto.getRandomValues(new Uint32Array(1))[0]).slice(0, 8).padStart(8, '0');
       const branchCode = localStorage.getItem('branchCode') || '';
       
       const depositData = {
