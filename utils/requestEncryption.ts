@@ -24,6 +24,8 @@ export async function encryptPayload(data: any): Promise<string> {
   const key = process.env.NEXT_PUBLIC_RESPONSE_ENCRYPTION_KEY;
   if (!key) throw new Error('Encryption key not available');
 
+  console.log(`[RequestEncrypt] Key fingerprint: ${key.substring(0, 8)}... (length: ${key.length})`);
+
   const plaintext = JSON.stringify(data);
   const iv = crypto.getRandomValues(new Uint8Array(12));
 
