@@ -318,12 +318,12 @@ export async function GET(request: Request) {
   // Call Express backend to decrypt token if provided
   if (!accountNumber && encryptedToken) {
     try {
-      const decryptResponse = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/decrypt-token`, {
+      const decryptTokenRes = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/decrypt-token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ encryptedToken }),
       });
-      const decryptResult = await decryptResponse.json();
+      const decryptResult = await decryptTokenRes.json();
       if (decryptResult.error || !decryptResult.accountNumber) {
         return NextResponse.json({
           success: false,
