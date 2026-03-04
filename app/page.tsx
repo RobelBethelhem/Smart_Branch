@@ -148,6 +148,7 @@ const [firstName, setFirstName] = useState('');
 const [searchName, setSearchName] = useState('');
 const [accountResults, setAccountResults] = useState<Array<{
   CUST_AC_NO: string;
+  CUST_AC_NO_FULL?: string;
   ACC_DESC: string;
   CCY: string;
 }>>([]);
@@ -537,23 +538,26 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
 
   const handleAccountSelect = async (selectedAccountNumber: string) => {
-    setAccountNumber(selectedAccountNumber);
     setShowAccountSelection(false);
 
-    // Extract CIF from account number
+    // Find the account in results to get the full (unmasked) account number
+    const account = accountResults.find(acc => acc.CUST_AC_NO === selectedAccountNumber);
+    const fullAccountNumber = account?.CUST_AC_NO_FULL || selectedAccountNumber;
+    const accountName = account?.ACC_DESC || '';
+
+    // Use full account number for internal state (display masked in UI)
+    setAccountNumber(fullAccountNumber);
+
+    // Extract CIF from full account number
     let cif = '';
-    if (selectedAccountNumber.length === 16) {
-      const withoutLast3 = selectedAccountNumber.slice(0, -3);
+    if (fullAccountNumber.length === 16) {
+      const withoutLast3 = fullAccountNumber.slice(0, -3);
       cif = withoutLast3.slice(-7);
     }
 
-    // Get account name from account results
-    const account = accountResults.find(acc => acc.CUST_AC_NO === selectedAccountNumber);
-    const accountName = account?.ACC_DESC || '';
-
-    // Store selected account info and show auth method selection
+    // Store selected account info with full account number for auth flows
     setSelectedAccountForAuth({
-      accountNumber: selectedAccountNumber,
+      accountNumber: fullAccountNumber,
       accountName: accountName,
       cif: cif
     });

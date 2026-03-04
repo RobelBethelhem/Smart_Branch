@@ -206,6 +206,7 @@ export async function POST(request: Request) {
         // Return masked account data for search results - no balance, no images
         const accounts = result.data.slice(0, 5).map((row: any) => ({
           CUST_AC_NO: maskAccountNumber(row.CUST_AC_NO),
+          CUST_AC_NO_FULL: row.CUST_AC_NO,
           ACC_DESC: row.ACC_DESC,
           CCY: row.CCY,
           FIRST_NAME: row.FIRST_NAME
