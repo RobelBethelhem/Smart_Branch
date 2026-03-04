@@ -5,8 +5,9 @@ const IV_LENGTH = 12;
 
 function getResponseKey(): Buffer {
   const key = process.env.RESPONSE_ENCRYPTION_KEY;
+  console.log('DEBUG RESPONSE_ENCRYPTION_KEY:', key ? `"${key}" (length=${key.length})` : 'UNDEFINED');
   if (!key || key.length !== 64) {
-    throw new Error('RESPONSE_ENCRYPTION_KEY must be a 64-char hex string');
+    throw new Error(`RESPONSE_ENCRYPTION_KEY must be a 64-char hex string (got: ${key ? `length=${key.length}` : 'undefined'})`);
   }
   return Buffer.from(key, 'hex');
 }

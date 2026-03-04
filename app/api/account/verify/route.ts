@@ -289,6 +289,7 @@ export async function POST(request: Request) {
 
       // If searching by account number, return full account details
       const rawData = result.data[0] as DatabaseRow;
+      console.log('DEBUG: rawData keys:', Object.keys(rawData));
       const accountData: AccountData = {
         BRANCH_CODE: rawData.BRANCH_CODE,
         CUST_AC_NO: rawData.CUST_AC_NO,
@@ -306,10 +307,21 @@ export async function POST(request: Request) {
         SIGN_IMAGE: rawData.SIGN_IMAGE
       };
 
-      return NextResponse.json({
-        success: true,
-        encrypted: encryptResponse(accountData)
-      });
+      console.log('DEBUG: accountData built, calling encryptResponse...');
+      try {
+        const encrypted = encryptResponse(accountData);
+        console.log('DEBUG: encryptResponse succeeded');
+        return NextResponse.json({
+          success: true,
+          encrypted
+        });
+      } catch (encErr) {
+        console.error('DEBUG: encryptResponse FAILED:', encErr);
+        return NextResponse.json({
+          success: false,
+          message: `Response encryption failed: ${encErr instanceof Error ? encErr.message : 'Unknown'}`
+        }, { status: 500 });
+      }
     } else {
       return NextResponse.json({
         success: false,
@@ -321,7 +333,7 @@ export async function POST(request: Request) {
     console.error('Account verification error:', error);
     return NextResponse.json({
       success: false,
-      message: 'Account verification failed'
+      message: `Account verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`
     }, { status: 500 });
   }
 }

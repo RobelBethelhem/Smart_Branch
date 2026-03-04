@@ -52,6 +52,7 @@ const nextConfig = {
   serverExternalPackages: ['oracledb'],
   env: {
     ORACLE_CLIENT_PATH: process.env.ORACLE_CLIENT_PATH,
+    RESPONSE_ENCRYPTION_KEY: process.env.RESPONSE_ENCRYPTION_KEY,
   }
 };
 
