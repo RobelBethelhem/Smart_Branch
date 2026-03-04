@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { executeQuery } from "@/lib/db";
 import { AccountData } from "@/types/account";
 import oracledb from 'oracledb';
-const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://10.1.1.181:5000';
+const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://localhost:5000';
 
 // Define the DatabaseRow interface
 interface DatabaseRow {

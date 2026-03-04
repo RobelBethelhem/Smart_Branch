@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import oracledb, { Connection, ExecuteOptions, NUMBER, DATE, Result } from 'oracledb';
 import { dbConfig } from '@/lib/dbConfig';
 import { executeQuery } from '@/lib/db';
-const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://10.1.1.181:5000';
+const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://localhost:5000';
 
 interface TransactionRow {
   TRN_REF_NO: string;
