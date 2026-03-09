@@ -1,6 +1,9 @@
 /**
- * Client-side AES-256-GCM encryption using Web Crypto API.
- * Encrypts request payloads before sending to Express backend.
+ * AES-256-GCM encryption for request payloads sent to Express backend.
+ *
+ * Uses the browser's Web Crypto API when available (HTTPS or localhost).
+ * Falls back to a server-side encryption route (/api/encrypt) on non-secure
+ * contexts like http://10.1.1.181 where crypto.subtle is unavailable.
  */
 
 function hexToUint8Array(hex: string): Uint8Array {
@@ -16,15 +19,18 @@ function uint8ArrayToHex(bytes: Uint8Array): string {
 }
 
 /**
- * Encrypt a request payload object.
- * @param data - The request body object to encrypt
- * @returns Encrypted string in format: "iv:authTag:ciphertext" (hex-encoded)
+ * Check if Web Crypto API (crypto.subtle) is available.
  */
-export async function encryptPayload(data: any): Promise<string> {
+function isWebCryptoAvailable(): boolean {
+  return typeof crypto !== 'undefined' && typeof crypto.subtle !== 'undefined';
+}
+
+/**
+ * Client-side encryption using Web Crypto API.
+ */
+async function encryptClientSide(data: any): Promise<string> {
   const key = process.env.NEXT_PUBLIC_RESPONSE_ENCRYPTION_KEY;
   if (!key) throw new Error('Encryption key not available');
-
-  console.log(`[RequestEncrypt] Key fingerprint: ${key.substring(0, 8)}... (length: ${key.length})`);
 
   const plaintext = JSON.stringify(data);
   const iv = crypto.getRandomValues(new Uint8Array(12));
@@ -50,4 +56,38 @@ export async function encryptPayload(data: any): Promise<string> {
   const authTag = encryptedBytes.slice(encryptedBytes.length - 16);
 
   return `${uint8ArrayToHex(iv)}:${uint8ArrayToHex(authTag)}:${uint8ArrayToHex(ciphertext)}`;
+}
+
+/**
+ * Server-side encryption fallback via Next.js API route.
+ * Used when crypto.subtle is unavailable (non-HTTPS, non-localhost).
+ */
+async function encryptServerSide(data: any): Promise<string> {
+  const response = await fetch('/api/encrypt', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ data }),
+  });
+
+  const result = await response.json();
+  if (!response.ok || !result.success) {
+    throw new Error(result.message || 'Server-side encryption failed');
+  }
+
+  return result.encrypted;
+}
+
+/**
+ * Encrypt a request payload object.
+ * Automatically selects client-side or server-side encryption.
+ *
+ * @param data - The request body object to encrypt
+ * @returns Encrypted string in format: "iv:authTag:ciphertext" (hex-encoded)
+ */
+export async function encryptPayload(data: any): Promise<string> {
+  if (isWebCryptoAvailable()) {
+    return encryptClientSide(data);
+  }
+  // Fallback: encrypt on the server when crypto.subtle is not available
+  return encryptServerSide(data);
 }
