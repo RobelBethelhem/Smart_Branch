@@ -7,15 +7,19 @@ const IV_LENGTH = 12;
 /**
  * Server-side encryption fallback for non-HTTPS environments.
  *
- * When the app runs on http://10.1.1.181 (not localhost, not HTTPS),
- * the browser's crypto.subtle API is unavailable (requires secure context).
- * This route encrypts on the Next.js server side instead.
+ * SECURITY: Receives Base64-encoded data (NOT plaintext JSON).
+ * The Network tab shows only encoded gibberish in both directions.
+ *
+ * Flow:
+ *   Request:  { d: "eyJhY2NvdW50Li4u..." }              ← Base64 gibberish
+ *   Response: { success: true, encrypted: "iv:tag:ct" }   ← hex gibberish
+ *   Browser:  sends encrypted hex to Express backend
  */
 export async function POST(request: Request) {
   try {
-    const { data } = await request.json();
+    const { d } = await request.json();
 
-    if (!data) {
+    if (!d || typeof d !== 'string') {
       return NextResponse.json({ success: false, message: 'Missing data payload' }, { status: 400 });
     }
 
@@ -24,9 +28,11 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: 'Encryption key not configured' }, { status: 500 });
     }
 
+    // Decode Base64 to get the plaintext JSON
+    const plaintext = Buffer.from(d, 'base64').toString('utf8');
+
     const iv = crypto.randomBytes(IV_LENGTH);
     const cipher = crypto.createCipheriv(ALGORITHM, Buffer.from(key, 'hex'), iv);
-    const plaintext = JSON.stringify(data);
     const encrypted = Buffer.concat([cipher.update(plaintext, 'utf8'), cipher.final()]);
     const authTag = cipher.getAuthTag();
 

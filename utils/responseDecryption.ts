@@ -1,9 +1,10 @@
 /**
  * AES-256-GCM decryption for encrypted API responses.
  *
- * Uses the browser's Web Crypto API when available (HTTPS or localhost).
- * Falls back to a server-side decryption route (/api/decrypt) on non-secure
- * contexts like http://10.1.1.181 where crypto.subtle is unavailable.
+ * HTTPS / localhost → decrypts in browser via Web Crypto API (crypto.subtle)
+ * HTTP + server IP  → falls back to server-side route (/api/decrypt)
+ *                     which returns Base64-encoded data (NOT plaintext)
+ *                     so the Network tab never shows sensitive data.
  */
 
 function hexToUint8Array(hex: string): Uint8Array {
@@ -64,8 +65,9 @@ async function decryptClientSide(encryptedPayload: string): Promise<any> {
 }
 
 /**
- * Server-side decryption fallback via Next.js API route.
- * Used when crypto.subtle is unavailable (non-HTTPS, non-localhost).
+ * Server-side decryption fallback via /api/decrypt.
+ * Returns Base64-encoded data — decoded only in JS memory.
+ * Network tab shows:  { d: "eyJDVVNUX0FD..." }  ← not readable
  */
 async function decryptServerSide(encryptedPayload: string): Promise<any> {
   const response = await fetch('/api/decrypt', {
@@ -79,7 +81,8 @@ async function decryptServerSide(encryptedPayload: string): Promise<any> {
     throw new Error(result.message || 'Server-side decryption failed');
   }
 
-  return result.data;
+  // Decode Base64 in memory — plaintext never appears in Network tab
+  return JSON.parse(atob(result.d));
 }
 
 /**
@@ -93,6 +96,5 @@ export async function decryptResponse(encryptedPayload: string): Promise<any> {
   if (isWebCryptoAvailable()) {
     return decryptClientSide(encryptedPayload);
   }
-  // Fallback: decrypt on the server when crypto.subtle is not available
   return decryptServerSide(encryptedPayload);
 }

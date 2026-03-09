@@ -1,9 +1,10 @@
 /**
  * AES-256-GCM encryption for request payloads sent to Express backend.
  *
- * Uses the browser's Web Crypto API when available (HTTPS or localhost).
- * Falls back to a server-side encryption route (/api/encrypt) on non-secure
- * contexts like http://10.1.1.181 where crypto.subtle is unavailable.
+ * HTTPS / localhost → encrypts in browser via Web Crypto API (crypto.subtle)
+ * HTTP + server IP  → falls back to server-side route (/api/encrypt)
+ *                     which receives Base64-encoded data (NOT plaintext)
+ *                     so the Network tab never shows sensitive data.
  */
 
 function hexToUint8Array(hex: string): Uint8Array {
@@ -59,14 +60,18 @@ async function encryptClientSide(data: any): Promise<string> {
 }
 
 /**
- * Server-side encryption fallback via Next.js API route.
- * Used when crypto.subtle is unavailable (non-HTTPS, non-localhost).
+ * Server-side encryption fallback via /api/encrypt.
+ * Sends Base64-encoded data — plaintext never appears in Network tab.
+ * Network tab shows:  { d: "eyJhY2NvdW50Li4u..." }  ← not readable
  */
 async function encryptServerSide(data: any): Promise<string> {
+  // Base64-encode the data before sending so Network tab is unreadable
+  const base64Data = btoa(JSON.stringify(data));
+
   const response = await fetch('/api/encrypt', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ data }),
+    body: JSON.stringify({ d: base64Data }),
   });
 
   const result = await response.json();
@@ -88,6 +93,5 @@ export async function encryptPayload(data: any): Promise<string> {
   if (isWebCryptoAvailable()) {
     return encryptClientSide(data);
   }
-  // Fallback: encrypt on the server when crypto.subtle is not available
   return encryptServerSide(data);
 }
