@@ -3,9 +3,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { FiX, FiCheck, FiAlertCircle } from 'react-icons/fi';
-import { API_BASE_URL } from '@/config/environment';
+import { API_BASE_URL, FINGERPRINT_WS_URL } from '@/config/environment';
 
-const FINGERPRINT_SERVICE_URL = 'ws://localhost:8089';
+const FINGERPRINT_SERVICE_URL = FINGERPRINT_WS_URL;
 
 interface FingerprintAccount {
   account_number: string;

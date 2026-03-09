@@ -1,6 +1,19 @@
 // Background script for Fayda to Smart Branch extension
 console.log('Fayda Extension: Background script loaded');
 
+// ===========================================
+// Configurable Smart Branch URLs
+// ===========================================
+// To change for production, update these URLs:
+//   For localhost:  http://localhost:3000 / http://localhost:4000
+//   For production: http://10.1.1.181:3000 / http://10.1.1.181:4000
+// Also update the "matches" in manifest.json content_scripts
+// ===========================================
+const SMART_BRANCH_URLS = [
+  'http://localhost:3000',
+  'http://localhost:4000',
+];
+
 // Store extracted data temporarily
 let extractedData = null;
 
@@ -43,10 +56,11 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // Function to send data to Smart Branch app
 async function sendToSmartBranch(data) {
   try {
-    // Try to find Smart Branch tab (check both port 3000 and 4000)
-    let tabs = await chrome.tabs.query({ url: 'http://localhost:3000/*' });
-    if (tabs.length === 0) {
-      tabs = await chrome.tabs.query({ url: 'http://localhost:4000/*' });
+    // Try to find Smart Branch tab (check all configured URLs)
+    let tabs = [];
+    for (const baseUrl of SMART_BRANCH_URLS) {
+      tabs = await chrome.tabs.query({ url: `${baseUrl}/*` });
+      if (tabs.length > 0) break;
     }
 
     if (tabs.length > 0) {
@@ -84,7 +98,7 @@ async function sendToSmartBranch(data) {
 // Listen for tab updates to detect when Smart Branch opens
 chrome.tabs.onUpdated.addListener(async (tabId, changeInfo, tab) => {
   if (changeInfo.status === 'complete' && tab.url &&
-      (tab.url.startsWith('http://localhost:3000') || tab.url.startsWith('http://localhost:4000'))) {
+      SMART_BRANCH_URLS.some(url => tab.url.startsWith(url))) {
     // Smart Branch just loaded, check if we have queued data
     const result = await chrome.storage.local.get(['faydaData']);
     if (result.faydaData) {
