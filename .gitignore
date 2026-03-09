@@ -24,8 +24,8 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# local env files
-.env*.local
+# local env files (allow .env.local to be tracked for team configuration)
+# .env*.local
 
 # vercel
 .vercel
