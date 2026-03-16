@@ -37,6 +37,7 @@ import { AnimatePresence } from 'framer-motion';
 import numberToWords from '@/utils/numberToWordConverter'
 import { API_BASE_URL } from '@/config/environment';
 import { decryptResponse } from '@/utils/responseDecryption';
+import { encryptPayload } from '@/utils/requestEncryption';
 
 
 
@@ -398,12 +399,14 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   useEffect(() => {
     const checkInactivity = setInterval(() => {
       if (Date.now() - lastActivity > INACTIVITY_TIMEOUT && !showAd) {
+        destroyServerSession(); // Destroy server session on inactivity
+        setSessionToken(null);
         setShowAd(true);
       }
     }, 1000);
 
     return () => clearInterval(checkInactivity);
-  }, [lastActivity, showAd]);
+  }, [lastActivity, showAd, destroyServerSession]);
 
   // Listen for messages from browser extension
   useEffect(() => {
@@ -803,7 +806,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setShowFingerprintVerification(false);
   };
 
-  const isValidReference = /^\d{6}$/.test(uniqueReference);
+  const isValidReference = /^[A-Z0-9]{10}$/.test(uniqueReference);
 
   const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -967,14 +970,12 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         beneficiary_branch: currentFormData.beneficiary_branch
     };
 
-
-
       const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/edit_smart_branch_request`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
         },
-       body: JSON.stringify(updateData)
+       body: JSON.stringify({ encrypted: await encryptPayload(updateData) })
       });
 
       if (!response.ok) {
@@ -996,15 +997,17 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     }
 
     try {
+      const deleteData = {
+          Customer_Unique_Number: currentFormData.Customer_Unique_Number,
+          request_type: currentFormData.request_type
+      };
+
       const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/delete_smart_branch_request`, {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          Customer_Unique_Number: currentFormData.Customer_Unique_Number,
-          request_type: currentFormData.request_type
-      })
+        body: JSON.stringify({ encrypted: await encryptPayload(deleteData) })
       });
 
       if (!response.ok) {
@@ -1576,14 +1579,15 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   id="uniqueReference"
                   value={uniqueReference}
                   onChange={(e) => {
-                    const value = e.target.value;
-                   
-                    if (/^\d{0,6}$/.test(value)) {
+                    const value = e.target.value.toUpperCase();
+
+                    if (/^[A-Z0-9]{0,10}$/.test(value)) {
                       setUniqueReference(value);
                     }
                   }}
+                  maxLength={10}
                   className="w-full p-3 border border-[#d9d9d9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
-                  placeholder="Enter Unique Reference Number"
+                  placeholder="Enter 10-character Reference (e.g. A3BK5N7X2R)"
                 />
                 <FiUser className="absolute top-3 left-3 text-gray-400" />
               </div>
