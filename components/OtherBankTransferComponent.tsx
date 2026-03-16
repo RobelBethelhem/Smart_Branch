@@ -12,8 +12,9 @@ interface OtherBankTransferComponentProps {
   onBack: () => void;
   balance?: number;
   storedSignature?: string;
-  accountNumber?: string;  // Add this
+  accountNumber?: string;
   accountName?: string;
+  sessionToken?: string | null;
 }
 
 const numberToWords = (num: number): string => {
@@ -52,12 +53,13 @@ const numberToWords = (num: number): string => {
   return convert(num).trim();
 };
 
-const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({ 
+const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
   onBack,
   balance = 0,
   storedSignature,
   accountNumber,
-  accountName
+  accountName,
+  sessionToken
 }) => {
   const [amount, setAmount] = useState<string>('');
   const [recipientName, setRecipientName] = useState<string>('');
@@ -184,6 +186,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
         Customer_Unique_Number: uniqueNumber,
         system: true,
         branch: branchCode,
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/other_bank_transfer`, {
@@ -239,6 +242,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
         Customer_Unique_Number: uniqueNumber,
         system: false,
         branch: branchCode,
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/other_bank_transfer`, {

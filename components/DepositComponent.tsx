@@ -52,6 +52,7 @@ interface DepositComponentProps {
   storedSignature?: string;
   accountNumber?: string;
   accountName?: string;
+  sessionToken?: string | null;
 }
 
 // Add this interface for the address structure
@@ -68,7 +69,7 @@ const extractCustomerNumber = (accountNumber: string): string => {
   return accountNumber.substring(7, 14);
 };
 
-const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, storedSignature, accountNumber, accountName }) => {
+const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, storedSignature, accountNumber, accountName, sessionToken }) => {
   if (process.env.NODE_ENV === 'development') console.log('Account Number:', accountNumber);
   if (process.env.NODE_ENV === 'development') console.log('Account Name:', accountName);
   const isSubmittingRef = useRef(false);
@@ -183,6 +184,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
         Customer_Unique_Number: uniqueNumber,
         system: true,
         branch: branchCode,
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/deposit`, {
@@ -241,6 +243,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
         Customer_Unique_Number: uniqueNumber,
         system: false,
         branch: branchCode,
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/deposit`, {

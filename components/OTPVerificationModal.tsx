@@ -7,7 +7,7 @@ import { API_BASE_URL } from '@/config/environment';
 
 interface OTPVerificationModalProps {
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (sessionToken: string) => void;
   encryptedToken: string;
   maskedPhone?: string;
 }
@@ -117,8 +117,8 @@ const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
 
       const result = await response.json();
 
-      if (response.ok && !result.error) {
-        onSuccess();
+      if (response.ok && !result.error && result.data?.sessionToken) {
+        onSuccess(result.data.sessionToken);
       } else {
         setError(result.message || 'Invalid OTP. Please try again.');
         setOtp(['', '', '', '', '', '']);

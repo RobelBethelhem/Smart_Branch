@@ -172,6 +172,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showOTPVerification, setShowOTPVerification] = useState(false);
   const [selectedAccountForAuth, setSelectedAccountForAuth] = useState<{encryptedToken: string, accountName: string, maskedAccountNumber: string} | null>(null);
   const [otpMaskedPhone, setOtpMaskedPhone] = useState<string>('');
+  const [sessionToken, setSessionToken] = useState<string | null>(null);
   const [showMainDashboard, setShowMainDashboard] = useState(false);
   const [showTransactionMap, setShowTransactionMap] = useState(false);
   const [branchSelected, setBranchSelected] = useState<boolean>(false);
@@ -287,6 +288,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setShowProductsShowcase(false);
     setSelectedOption(null);
     setAccountData(null);  // Clear account data to return to welcome screen
+    setSessionToken(null); // Clear session token
     setLastActivity(Date.now());
   }, []);
 
@@ -660,7 +662,8 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   };
 
   // Handler for OTP verification success
-  const handleOTPSuccess = async () => {
+  // sessionToken is the server-side proof of OTP verification — prevents replay attacks
+  const handleOTPSuccess = async (serverSessionToken: string) => {
     setShowOTPVerification(false);
     if (!selectedAccountForAuth) return;
 
@@ -668,20 +671,27 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setError(null);
 
     try {
-      // Verify the account to get full account data using encrypted token
-      const response = await fetch('/api/account/verify', {
+      // Use the session token to get account data — the account number comes
+      // from the SERVER-SIDE session, NOT from the client. This prevents OTP bypass.
+      const response = await fetch('/api/account/verify-session', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ encryptedToken: selectedAccountForAuth.encryptedToken }),
+        body: JSON.stringify({ sessionToken: serverSessionToken }),
       });
 
       const result = await response.json();
 
       if (result.success && result.encrypted) {
+        // Store the session token for subsequent transaction requests
+        setSessionToken(serverSessionToken);
+
         const accountData = await decryptResponse(result.encrypted);
-        const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth.encryptedToken)}`);
+
+        // Fetch transactions using the server-provided encrypted token
+        const encryptedToken = selectedAccountForAuth.encryptedToken;
+        const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(encryptedToken)}`);
         const transactionsResult = await transactionsResponse.json();
 
         if (transactionsResponse.ok && transactionsResult.encrypted) {
@@ -695,7 +705,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           setError('Failed to fetch transactions');
         }
       } else {
-        setError(result.message || 'Account not found');
+        setError(result.message || 'Session validation failed');
       }
     } catch (err) {
       setError('An error occurred while verifying your account');
@@ -2108,20 +2118,22 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     }
   
     if (selectedOption === 'withdraw' && accountData) {
-      return <WithdrawComponent 
-        onBack={handleBack} 
-        balance={userData.balance}
-        storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
-        accountNumber={accountData.CUST_AC_NO}
-        accountName={accountData.ACC_DESC}
-      />;
-    } else if (selectedOption === 'deposit' && accountData ) {
-      return<DepositComponent 
+      return <WithdrawComponent
         onBack={handleBack}
         balance={userData.balance}
         storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
         accountNumber={accountData.CUST_AC_NO}
         accountName={accountData.ACC_DESC}
+        sessionToken={sessionToken}
+      />;
+    } else if (selectedOption === 'deposit' && accountData ) {
+      return<DepositComponent
+        onBack={handleBack}
+        balance={userData.balance}
+        storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
+        accountNumber={accountData.CUST_AC_NO}
+        accountName={accountData.ACC_DESC}
+        sessionToken={sessionToken}
       />;
     } else if (selectedOption === 'transfer' && accountData) {
       return <TransferComponent
@@ -2130,9 +2142,10 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
         accountNumber={accountData.CUST_AC_NO}
         accountName={accountData.ACC_DESC}
+        sessionToken={sessionToken}
       />;
     } else if (selectedOption === 'forex') {
-      return <ForeignExchangeComponent 
+      return <ForeignExchangeComponent
         onBack={handleBack}
         balance={userData.balance}
         storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
@@ -2146,6 +2159,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
         accountNumber={accountData.CUST_AC_NO}
         accountName={accountData.ACC_DESC}
+        sessionToken={sessionToken}
       />;
     } else if (selectedOption === 'echeck' && accountData) {
       return <ECheckComponent
@@ -2154,6 +2168,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
         accountNumber={accountData.CUST_AC_NO}
         accountName={accountData.ACC_DESC}
+        sessionToken={sessionToken}
       />;
     } else if (selectedOption === 'Products') {
       return <BankProductsShowcase onBack={handleBack} />;
@@ -2225,6 +2240,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       onClick={() => {
         setShowDashboard(false);
         setAccountData(null);  // Clear account data on logout
+        setSessionToken(null); // Clear session token on logout
       }}
       >
       <FiLogOut className="text-xl" />

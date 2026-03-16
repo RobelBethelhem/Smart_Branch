@@ -52,14 +52,16 @@ interface WithdrawComponentProps {
   storedSignature?: string;
   accountNumber?: string;
   accountName?: string;
+  sessionToken?: string | null;
 }
 
-const WithdrawComponent: React.FC<WithdrawComponentProps> = ({ 
-  onBack, 
+const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
+  onBack,
   balance,
   storedSignature,
   accountNumber,
-  accountName
+  accountName,
+  sessionToken
 }) => {
 
   const [transactionNumber, setTransactionNumber] = useState<string>('');
@@ -170,6 +172,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
         account_type: "Savings",
         reference_number: newReferenceNumber,
         payment_narrative: paymentNarrative || 'Cash Withdrawal',
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/withdraw`, {
@@ -216,6 +219,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
         account_type: "Savings",
         reference_number: newReferenceNumber,
         payment_narrative: paymentNarrative || 'Cash Withdrawal',
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/withdraw`, {

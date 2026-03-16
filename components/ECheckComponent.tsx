@@ -52,6 +52,7 @@ interface ECheckComponentProps {
   storedSignature: string;
   accountNumber: string;
   accountName: string;
+  sessionToken?: string | null;
 }
 
 const ECheckComponent: React.FC<ECheckComponentProps> = ({
@@ -59,7 +60,8 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
   balance,
   storedSignature,
   accountNumber,
-  accountName
+  accountName,
+  sessionToken
 }) => {
 
   const [transactionNumber, setTransactionNumber] = useState<string>('');
@@ -192,6 +194,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
         account_type: "Savings",
         reference_number: newReferenceNumber,
         payment_narrative: paymentNarrative || `E-Check to ${recipientFullName}`,
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/echeck`, {
@@ -240,6 +243,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
         account_type: "Savings",
         reference_number: newReferenceNumber,
         payment_narrative: paymentNarrative || `E-Check to ${recipientFullName}`,
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/echeck`, {

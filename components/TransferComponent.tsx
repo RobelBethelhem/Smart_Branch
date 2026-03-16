@@ -14,6 +14,7 @@ interface TransferComponentProps {
   storedSignature?: string;
   accountNumber?: string;
   accountName?: string;
+  sessionToken?: string | null;
 }
 
 interface VerifyAccountModalProps {
@@ -127,12 +128,13 @@ const VerifyAccountModal: React.FC<VerifyAccountModalProps> = ({
 };
 
 
-const TransferComponent: React.FC<TransferComponentProps> = ({ 
+const TransferComponent: React.FC<TransferComponentProps> = ({
   onBack,
   balance,
   storedSignature,
   accountNumber,
-  accountName 
+  accountName,
+  sessionToken
 }) => {
   const [amount, setAmount] = useState<string>('');
   const [recipientAccount, setRecipientAccount] = useState<string>('');
@@ -297,7 +299,8 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
         Customer_Unique_Number: uniqueNumber,
         system: true,
         branch: branchCode,
-        payment_narrative: paymentNarrative || ''
+        payment_narrative: paymentNarrative || '',
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/transfer`, {
@@ -349,7 +352,8 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
         Customer_Unique_Number: uniqueNumber,
         system: false,
         branch: branchCode,
-        payment_narrative: paymentNarrative || ''
+        payment_narrative: paymentNarrative || '',
+        sessionToken,
       };
 
       const result = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/zsmart_branch_requests/transfer`, {
