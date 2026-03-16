@@ -279,7 +279,23 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     },
   ];
 
+  // Destroy server-side session on logout (prevents session reuse)
+  const destroyServerSession = useCallback(async () => {
+    if (!sessionToken) return;
+    try {
+      await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/destroy-session`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ sessionToken }),
+      });
+    } catch (err) {
+      // Silent fail — session will auto-expire via TTL anyway
+      console.error('Failed to destroy session:', err);
+    }
+  }, [sessionToken]);
+
   const resetToWelcomeScreen = useCallback(() => {
+    destroyServerSession(); // Destroy backend session first
     setShowAd(false);
     setShowInput(false);
     setShowDashboard(false);
@@ -290,7 +306,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setAccountData(null);  // Clear account data to return to welcome screen
     setSessionToken(null); // Clear session token
     setLastActivity(Date.now());
-  }, []);
+  }, [destroyServerSession]);
 
   const handleActivity = useCallback(() => {
     if (showAd) {
@@ -2238,6 +2254,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={() => {
+        destroyServerSession(); // Destroy backend session first
         setShowDashboard(false);
         setAccountData(null);  // Clear account data on logout
         setSessionToken(null); // Clear session token on logout
