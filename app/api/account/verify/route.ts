@@ -308,12 +308,34 @@ export async function POST(request: Request) {
       };
 
       console.log('DEBUG: accountData built, calling encryptResponse...');
+
+      // Best-effort: also produce an encrypted account token so the client can
+      // run the unified auth flow (OTP / Fingerprint / Face) for direct
+      // account-number logins. The full account number never reaches the browser.
+      // Non-fatal: if token encryption is unavailable the client falls back to
+      // direct face verification using the encrypted account payload.
+      let accountToken: string | null = null;
+      try {
+        const encryptTokensRes = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/encrypt-tokens`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accountNumbers: [accountData.CUST_AC_NO] }),
+        });
+        const encryptResult = await encryptTokensRes.json();
+        if (!encryptResult.error && Array.isArray(encryptResult.tokens)) {
+          accountToken = encryptResult.tokens[0] || null;
+        }
+      } catch (tokenErr) {
+        console.error('Account token encryption error (non-fatal):', tokenErr);
+      }
+
       try {
         const encrypted = encryptResponse(accountData);
         console.log('DEBUG: encryptResponse succeeded');
         return NextResponse.json({
           success: true,
-          encrypted
+          encrypted,
+          encryptedToken: accountToken
         });
       } catch (encErr) {
         console.error('DEBUG: encryptResponse FAILED:', encErr);

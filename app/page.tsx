@@ -8,7 +8,7 @@ import WithdrawComponent from '../components/WithdrawComponent';
 import DepositComponent from '../components/DepositComponent';
 import TransferComponent from '../components/TransferComponent';
 import ForeignExchangeComponent from '../components/ForeignExchangeComponent';
-import CommentComponent from '../components/CommentComponent';
+import FeedbackMiniApp from '../components/FeedbackMiniApp';
 import OtherBankTransferComponent from '../components/OtherBankTransferComponent';
 import ECheckComponent from '../components/ECheckComponent';
 import BankFloorLayout from '../components/BankFloorLayout';
@@ -17,6 +17,7 @@ import * as faceapi from 'face-api.js';
 import BankProductsShowcase from '../components/BankProduct';
 import FlexcubeTest from '../components/FlexcubeTest';
 import ErrorMessage from '@/components/ErrorMessage';
+import Toast from '@/components/Toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { AccountData, UserData, Transaction } from '@/types/account';
 import UserDashboard from '@/components/UserDashboard';
@@ -182,6 +183,15 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showFaydaModal, setShowFaydaModal] = useState(false);
   const [faydaData, setFaydaData] = useState<any>(null);
   const [showFaydaPDFUpload, setShowFaydaPDFUpload] = useState(false);
+  // Toast messages for the edit/cancel-request flow (non-blocking, keep popup open)
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Mask an account number for display (first 4 + last 4 digits)
+  const maskAccount = (accountNo: string) => {
+    if (!accountNo || accountNo.length < 8) return accountNo;
+    return accountNo.slice(0, 4) + '****' + accountNo.slice(-4);
+  };
 
   // Prevent hydration errors by only rendering after mount
   useEffect(() => {
@@ -510,32 +520,53 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   
       if (result.success) {
         if (result.isNameSearch) {
-          // Name/phone search results are NOT encrypted (just masked account numbers)
-          setAccountResults(result.data);
-          setShowAccountSelection(true);
-        } else if (result.encrypted) {
-          // Direct account number search — response is encrypted
-          const accountData = await decryptResponse(result.encrypted);
-          const transactionsResponse = await fetch(`/api/transactions?accountNumber=${
-            searchType === 'account' ? accountNumber : accountData.CUST_AC_NO
-          }`);
-          const transactionsResult = await transactionsResponse.json();
-
-          if (transactionsResponse.ok && transactionsResult.encrypted) {
-            const transactionsData = await decryptResponse(transactionsResult.encrypted);
-            const accountDataWithTransactions = {
-              ...accountData,
-              transactions: transactionsData
-            };
-
-            if (accountDataWithTransactions.PROFILE_IMAGE) {
-              setPendingAccountData(accountDataWithTransactions);
-              setShowFaceVerification(true);
-            } else {
-              setError('Profile image not found');
-            }
+          // Name/phone search — auto-select the best-match account silently
+          // (no account-picker list) and go straight to the auth method screen.
+          if (result.data && result.data.length > 0) {
+            const account = result.data[0];
+            setSelectedAccountForAuth({
+              encryptedToken: account.encryptedToken || '',
+              accountName: account.ACC_DESC || '',
+              maskedAccountNumber: account.CUST_AC_NO,
+            });
+            setShowAuthMethodSelection(true);
           } else {
-            setError('Failed to fetch transactions');
+            setError('No accounts found');
+          }
+        } else if (result.encrypted) {
+          // Direct account-number search.
+          const accountData = await decryptResponse(result.encrypted);
+
+          if (result.encryptedToken) {
+            // Preferred: unified auth flow (OTP / Fingerprint / Face), same as
+            // the name/phone path — pick the account behind the scenes.
+            setSelectedAccountForAuth({
+              encryptedToken: result.encryptedToken,
+              accountName: accountData.ACC_DESC || '',
+              maskedAccountNumber: maskAccount(accountData.CUST_AC_NO),
+            });
+            setShowAuthMethodSelection(true);
+          } else {
+            // Fallback: account token unavailable — verify by face directly.
+            const transactionsResponse = await fetch(`/api/transactions?accountNumber=${accountData.CUST_AC_NO}`);
+            const transactionsResult = await transactionsResponse.json();
+
+            if (transactionsResponse.ok && transactionsResult.encrypted) {
+              const transactionsData = await decryptResponse(transactionsResult.encrypted);
+              const accountDataWithTransactions = {
+                ...accountData,
+                transactions: transactionsData
+              };
+
+              if (accountDataWithTransactions.PROFILE_IMAGE) {
+                setPendingAccountData(accountDataWithTransactions);
+                setShowFaceVerification(true);
+              } else {
+                setError('Profile image not found');
+              }
+            } else {
+              setError('Failed to fetch transactions');
+            }
           }
         }
       } else {
@@ -649,8 +680,8 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
         const result = await response.json();
 
-        if (response.ok && !result.error) {
-          setOtpMaskedPhone(result.data.maskedPhone);
+        if (response.ok && !result.error && result.data) {
+          setOtpMaskedPhone(result.data.maskedPhone || '');
           setShowOTPVerification(true);
         } else {
           setError(result.message || 'Failed to send OTP');
@@ -808,13 +839,15 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
   const isValidReference = /^[A-Z0-9]{10}$/.test(uniqueReference);
 
+  // Edit/Cancel Request: look up the request by reference number and show the
+  // editable form directly. No face recognition is required for edit/delete.
   const handleEditSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setLoading(true);
     setError(null);
-  
+
     try {
-      // Step 1: Fetch account number using the unique reference number
+      // Fetch the request(s) tied to the unique reference number
       const referenceResponse = await fetch(
         `${API_BASE_URL}/api/zsmart_branch_requests/get_account_number_by_reference_number`,
         {
@@ -825,94 +858,36 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           body: JSON.stringify({ referenceNumber: uniqueReference }),
         }
       );
-  
+
       if (!referenceResponse.ok) {
-        throw new Error('Invalid or Expiry Reference Number');
+        throw new Error('Invalid or Expired Reference Number');
       }
-  
+
       const referenceData = await referenceResponse.json();
 
-    
-  
       if (!referenceData.transactions || referenceData.transactions.length === 0) {
         throw new Error('No transactions found for the reference number');
       }
-  
-      const accountNumber = referenceData.transactions[0].account_number;
-  
-      // Step 2: Verify the account using the fetched account number
-      const verifyResponse = await fetch('/api/account/verify', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ 
-          accountNumber: searchType === 'account' ? accountNumber : null,
-          searchName: searchType === 'name' ? searchName : null,
-          firstName: searchType === 'phone' ? firstName : null,
-          phoneNumber: searchType === 'phone' ? phoneNumber : null
-         }),
-      });
-  
-     
-      const verifyData = await verifyResponse.json();
 
-      // console.log("verifyResponseverifyResponse", verifyResponse)
-      // if (!verifyResponse.ok) {
-      //   throw new Error('Failed to verify account');
-      // }
-  
-     
-  
-      if (!verifyData.success || !verifyData.encrypted) {
-        throw new Error('Account verification failed');
-      }
-
-      const decryptedAccountData = await decryptResponse(verifyData.encrypted);
-
-      const transactionsResponse = await fetch(`/api/transactions?accountNumber=${
-        searchType === 'account' ? accountNumber : decryptedAccountData.CUST_AC_NO
-      }`);
-      const transactionsResult = await transactionsResponse.json();
-
-      if (transactionsResponse.ok && transactionsResult.encrypted) {
-        const transactionsData = await decryptResponse(transactionsResult.encrypted);
-        const accountDataWithTransactions = {
-          ...decryptedAccountData,
-          transactions: transactionsData
-        };
-
-        if (accountDataWithTransactions.PROFILE_IMAGE) {
-          setPendingAccountData(accountDataWithTransactions);
-          setShowFaceVerification(true);
-        } else {
-          setError('Profile image not found');
-        }
-        
-      } 
-
-      else {
-        setError('Failed to fetch transactions');
-      }
-
-
-  
-      // Step 3: Set the account data and profile image
-
-
-      setShowPopup(true);
-
-
-      setAccountData(verifyData.data);
+      // Show the editable request form directly (no face verification).
+      setFormData(null);
       setResponseData(referenceData.transactions);
-  
-      // Step 4: Show the face verification modal
-      setShowFaceVerification(true);
+      setShowPopup(true);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
     } finally {
       setLoading(false);
     }
+  };
+
+  // Return to the welcome/home screen from the edit/cancel-request flow.
+  const handleEditGoHome = () => {
+    setShowPopup(false);
+    setShowEditForm(false);
+    setResponseData(null);
+    setFormData(null);
+    setUniqueReference('');
+    setError(null);
   };
 
 
@@ -982,17 +957,17 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         throw new Error('Update failed');
       }
 
-      // Handle successful update
-      alert('Transaction updated successfully');
-      
+      // Handle successful update — redirect to the home page
+      setSuccessMessage('Request updated successfully');
+      handleEditGoHome();
     } catch (error) {
       console.log('Error updating transaction:', error);
-      alert('Failed to update transaction');
+      setErrorMessage('Failed to update request. Please try again.');
     }
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Are you sure you want to delete this transaction?')) {
+    if (!window.confirm('Are you sure you want to cancel this request?')) {
       return;
     }
 
@@ -1014,12 +989,12 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         throw new Error('Delete failed');
       }
 
-      // Handle successful deletion
-      alert('Transaction deleted successfully');
-      
+      // Handle successful cancellation — redirect to the home page
+      setSuccessMessage('Request cancelled successfully');
+      handleEditGoHome();
     } catch (error) {
       console.error('Error deleting transaction:', error);
-      alert('Failed to delete transaction');
+      setErrorMessage('Failed to cancel request. Please try again.');
     }
   };
 
@@ -1420,11 +1395,27 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           className="mt-6"
         >
           <button
-            type="button" 
+            type="button"
             onClick={handleDelete}
             className="w-full bg-gradient-to-r from-red-600 to-purple-600 text-white p-3 rounded-lg font-semibold hover:from-red-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105"
           >
             Cancel Request
+          </button>
+        </motion.div>
+
+
+        <motion.div
+          initial={{ opacity: 0, y: 50 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 3.5, delay: 1.2 }}
+          className="mt-4"
+        >
+          <button
+            type="button"
+            onClick={handleEditGoHome}
+            className="w-full bg-gray-100 text-gray-700 p-3 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300 border border-gray-300"
+          >
+            Back
           </button>
         </motion.div>
 
@@ -1603,7 +1594,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                <button
               type="submit"
               disabled={!isValidReference || loading} // Disable if not valid or loading
-              className="wbg-gradient-to-r from-[#E60000] to-[#FF6666] text-white p-3 rounded-lg font-semibold hover:from-blue-700 hover:to-purple-700 transition-all duration-300 transform hover:scale-105 disabled:opacity-70 disabled:cursor-not-allowed"
+              className="w-full bg-gradient-to-r from-[#E60000] to-[#FF6666] text-white p-3 rounded-lg font-semibold hover:from-[#B30000] hover:to-[#FF4444] transition-all duration-300 transform hover:scale-105 disabled:opacity-70 disabled:cursor-not-allowed"
             >
               {loading ? (
                 <div className="flex items-center justify-center">
@@ -1633,6 +1624,22 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 'Submit'
               )}
             </button>
+            </motion.div>
+
+            {/* Back Button - return to the home screen */}
+            <motion.div
+              initial={{ opacity: 0, y: 50 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 2.2 }}
+              className="mt-4"
+            >
+              <button
+                type="button"
+                onClick={handleEditGoHome}
+                className="w-full bg-gray-100 text-gray-700 p-3 rounded-lg font-semibold hover:bg-gray-200 transition-all duration-300 border border-gray-300"
+              >
+                Back
+              </button>
             </motion.div>
           </motion.form>
 
@@ -1793,17 +1800,6 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                 </button>
                 <button
                   type="button"
-                  onClick={() => setSearchType('name')}
-                  className={`px-4 py-2 rounded ${
-                    searchType === 'name'
-                      ? 'bg-[#E60000] text-white'
-                      : 'bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  Full Name
-                </button>
-                <button
-                  type="button"
                   onClick={() => setSearchType('phone')}
                   className={`px-4 py-2 rounded ${
                     searchType === 'phone'
@@ -1812,17 +1808,6 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
                   }`}
                 >
                   First Name & Phone
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSearchType('combined')}
-                  className={`px-4 py-2 rounded ${
-                    searchType === 'combined'
-                      ? 'bg-[#E60000] text-white'
-                      : 'bg-gray-200 text-gray-700'
-                  }`}
-                >
-                  Complete Information
                 </button>
               </div>
             </div>
@@ -2171,7 +2156,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         storedSignature={userData.signImage ? `data:image/jpeg;base64,${userData.signImage}` : ''}
       />;
     } else if (selectedOption === 'comment') {
-      return <CommentComponent onBack={handleBack} />;
+      return <FeedbackMiniApp onBack={handleBack} />;
     } else if (selectedOption === 'other-bank-transfer'  && accountData) {
       return <OtherBankTransferComponent
         onBack={handleBack}
@@ -2577,7 +2562,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
               >
                 <div className="p-4 sm:p-6 flex flex-col items-center justify-center text-white">
                   <FiMessageCircle className="text-3xl sm:text-4xl mb-2" />
-                  <span className="text-base sm:text-lg font-semibold text-center">Drop Comment</span>
+                  <span className="text-base sm:text-lg font-semibold text-center">Give Feedback</span>
                 </div>
               </motion.div>
 
@@ -2733,6 +2718,20 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     <OpenCVProvider>
       <main className="min-h-screen bg-gray-100">
         {renderContent()}
+        {successMessage && (
+          <Toast
+            message={successMessage}
+            type="success"
+            onClose={() => setSuccessMessage(null)}
+          />
+        )}
+        {errorMessage && (
+          <Toast
+            message={errorMessage}
+            type="error"
+            onClose={() => setErrorMessage(null)}
+          />
+        )}
         {showFaceVerification && pendingAccountData && (
           <FaceVerificationModal
             onClose={handleFaceVerificationClose}

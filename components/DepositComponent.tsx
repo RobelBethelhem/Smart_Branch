@@ -7,6 +7,7 @@ import SignatureVerificationModal from "./SignatureVerificationModal";
 import { API } from '../utils/api';
 import base64 from 'base64-js';
 import BranchServiceModal from './BranchServiceModal';
+import Toast from './Toast';
 import { decryptResponse } from '@/utils/responseDecryption';
 import { encryptPayload } from '@/utils/requestEncryption';
 
@@ -271,9 +272,10 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
   };
 
   const handleVerificationError = (errorMessage: string) => {
-    // Handle error (e.g., show a notification)
     console.error(errorMessage);
-    // You can set an error state here to display the message to the user
+    // Close the blocking branch-service modal and surface the error as a toast
+    setShowBranchServiceModal(false);
+    setError(errorMessage);
   };
 
   const handleSuccessClose = () => {
@@ -367,15 +369,9 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
               )}
             </div>
 
-            {/* Error Message */}
+            {/* Error Toast — non-blocking, lets the user go Back or retry */}
             {error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="p-4 rounded-xl bg-red-50 border border-red-200"
-              >
-                <p className="text-sm text-red-600">{error}</p>
-              </motion.div>
+              <Toast message={error} type="error" onClose={() => setError('')} />
             )}
 
             {/* Submit Button */}

@@ -5,6 +5,7 @@ import SignatureModal from './SignatureModal';
 import SuccessModal from './SuccessModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import BranchServiceModal from './BranchServiceModal';
+import Toast from './Toast';
 import { decryptResponse } from '@/utils/responseDecryption';
 import { encryptPayload } from '@/utils/requestEncryption';
 
@@ -381,8 +382,9 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
   };
 
   const handleVerificationError = (error: string) => {
-    setError(error);
+    setShowBranchServiceModal(false);
     setShowVerificationModal(false);
+    setError(error);
   };
 
   const isFormValid = (): boolean => {
@@ -542,15 +544,9 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
               )}
             </div>
 
-            {/* Error Message */}
+            {/* Error Toast — non-blocking, lets the user go Back or retry */}
             {error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="p-4 rounded-xl bg-red-50 border border-red-200"
-              >
-                <p className="text-sm text-red-600">{error}</p>
-              </motion.div>
+              <Toast message={error} type="error" onClose={() => setError('')} />
             )}
 
             {/* Submit Button */}

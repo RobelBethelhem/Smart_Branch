@@ -5,6 +5,7 @@ import SignatureModal from './SignatureModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import SuccessModal from './SuccessModal';
 import BranchServiceModal from './BranchServiceModal';
+import Toast from './Toast';
 import { encryptPayload } from '@/utils/requestEncryption';
 
 
@@ -214,6 +215,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
         throw new Error(result.message);
       }
     } catch (err) {
+      setShowBranchServiceModal(false);
       setError(err instanceof Error ? err.message : 'Failed to process E-Check');
     } finally {
       setIsProcessing(false);
@@ -263,6 +265,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
         throw new Error(result.message);
       }
     } catch (err) {
+      setShowBranchServiceModal(false);
       setError(err instanceof Error ? err.message : 'Failed to process E-Check');
     } finally {
       setIsProcessing(false);
@@ -270,6 +273,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
   };
 
   const handleVerificationError = (errorMessage: string) => {
+    setShowBranchServiceModal(false);
     setError(errorMessage);
     setShowVerificationModal(false);
     setShowSignatureModal(true);
@@ -410,9 +414,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
             </div>
 
             {error && (
-              <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
-                <p className="text-red-600 text-sm">{error}</p>
-              </div>
+              <Toast message={error} type="error" onClose={() => setError(null)} />
             )}
 
             <button

@@ -5,6 +5,7 @@ import SignatureModal from './SignatureModal';
 import SignatureVerificationModal from './SignatureVerificationModal';
 import SuccessModal from './SuccessModal';
 import BranchServiceModal from './BranchServiceModal';
+import Toast from './Toast';
 import { encryptPayload } from '@/utils/requestEncryption';
 
 
@@ -192,6 +193,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
         throw new Error(result.message);
       }
     } catch (err) {
+      setShowBranchServiceModal(false);
       setError(err instanceof Error ? err.message : 'Failed to process transaction');
     } finally {
       setIsProcessing(false);
@@ -239,6 +241,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
         throw new Error(result.message);
       }
     } catch (err) {
+      setShowBranchServiceModal(false);
       setError(err instanceof Error ? err.message : 'Failed to process transaction');
     } finally {
       setIsProcessing(false);
@@ -338,15 +341,9 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
               )}
             </div>
 
-            {/* Error Message */}
+            {/* Error Toast — non-blocking, lets the user go Back or retry */}
             {error && (
-              <motion.div
-                initial={{ opacity: 0 }}
-                animate={{ opacity: 1 }}
-                className="p-4 rounded-xl bg-red-50 border border-red-200"
-              >
-                <p className="text-sm text-red-600">{error}</p>
-              </motion.div>
+              <Toast message={error} type="error" onClose={() => setError(null)} />
             )}
 
             {/* Submit Button */}
