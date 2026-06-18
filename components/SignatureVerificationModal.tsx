@@ -228,7 +228,9 @@ const extractSignatures = async (imageUrl: string, isDrawn: boolean = false): Pr
             src.delete();
           }
         } catch (error) {
-          console.error('Error processing signature:', error);
+          // Expected validation outcome (e.g. no valid signature) — log without
+          // tripping the Next.js dev error overlay; the toast is shown via onError.
+          console.warn('Error processing signature:', error);
           reject(error);
         }
       };
@@ -259,7 +261,7 @@ const extractSignatures = async (imageUrl: string, isDrawn: boolean = false): Pr
       
       throw new Error('Invalid image data format');
     } catch (error) {
-      console.error('Error cleaning image URL:', error);
+      console.warn('Error cleaning image URL:', error);
       throw new Error('Invalid image data format');
     }
   };
@@ -521,7 +523,7 @@ const extractSignatures = async (imageUrl: string, isDrawn: boolean = false): Pr
   
       return finalSimilarity;
     } catch (error) {
-      console.error('Error calculating similarity:', error);
+      console.warn('Error calculating similarity:', error);
       throw error;
     }
   };
@@ -617,7 +619,10 @@ const SignatureVerificationModal: React.FC<SignatureModalProps> = ({
       }
 
     } catch (error) {
-      console.error('Signature verification error:', error);
+      // Expected verification failure (no/invalid signature, mismatch) — surface
+      // it via the toast (onError) and log at warn level so the Next.js dev
+      // error overlay does not pop up over the toast.
+      console.warn('Signature verification error:', error);
       onError(error instanceof Error ? error.message : 'Failed to verify signature');
     } finally {
       setIsProcessing(false);
