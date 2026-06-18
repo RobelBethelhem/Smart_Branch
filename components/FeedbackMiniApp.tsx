@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { motion } from 'framer-motion';
 import { FiChevronLeft, FiExternalLink, FiLock, FiRefreshCw } from 'react-icons/fi';
 
@@ -8,19 +8,31 @@ interface FeedbackMiniAppProps {
   onBack: () => void;
 }
 
-const FEEDBACK_URL = 'https://feedback.zemenbank.com';
+// Must point at the path whose nginx block adds the
+// `Content-Security-Policy: frame-ancestors ...` header (the /feedback/ proxy
+// location). The root path still sends X-Frame-Options and would be blocked.
+const FEEDBACK_URL = 'https://feedback.zemenbank.com/feedback/';
 const FEEDBACK_HOST = 'feedback.zemenbank.com';
 
 /**
- * Embedded "mini app" that opens the feedback site inside the banking app.
+ * Embedded "mini app" that opens the feedback portal inside the banking app.
  * The surrounding chrome (slide-in nav bar, branded loading, secure-host
- * indicator) is designed to feel like a native in-app screen rather than a
- * web page. If the site blocks embedding (X-Frame-Options / CSP), the
- * "open in new tab" action is the fallback.
+ * indicator) is designed to feel like a native in-app screen. Embedding works
+ * because the feedback server proxies /feedback/ and allows this app's origin
+ * via CSP frame-ancestors. The "open in new tab" action remains as a fallback.
  */
 const FeedbackMiniApp: React.FC<FeedbackMiniAppProps> = ({ onBack }) => {
   const [loading, setLoading] = useState(true);
+  const [slow, setSlow] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+
+  // If the frame is still loading after a while (e.g. blocked by a redirect to
+  // a non-allowed path), reveal an "open in new tab" escape hatch.
+  useEffect(() => {
+    setSlow(false);
+    const t = setTimeout(() => setSlow(true), 12000);
+    return () => clearTimeout(t);
+  }, [reloadKey]);
 
   const reload = () => {
     setLoading(true);
@@ -80,7 +92,7 @@ const FeedbackMiniApp: React.FC<FeedbackMiniAppProps> = ({ onBack }) => {
         </div>
       </div>
 
-      {/* Embedded content */}
+      {/* Embedded feedback portal */}
       <div className="relative flex-1 bg-gray-50">
         {loading && (
           <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-4 bg-white">
@@ -89,6 +101,16 @@ const FeedbackMiniApp: React.FC<FeedbackMiniAppProps> = ({ onBack }) => {
               <div className="absolute inset-0 animate-spin rounded-full border-4 border-transparent border-t-[#E60000]" />
             </div>
             <p className="text-sm font-medium text-gray-500">Loading feedback…</p>
+            {slow && (
+              <a
+                href={FEEDBACK_URL}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-[#E60000] underline underline-offset-2 hover:text-[#FF0000]"
+              >
+                Taking too long? Open in a new tab
+              </a>
+            )}
           </div>
         )}
         <iframe
