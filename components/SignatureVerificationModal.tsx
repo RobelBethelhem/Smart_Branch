@@ -15,6 +15,12 @@ interface SignatureModalProps {
   additionalInfo?: string;
 }
 
+// Minimum combined similarity (0..1) required to accept a signature as a match.
+// Far stricter than the old 0.2. The score below is built from discriminative,
+// ink-focused metrics, so this maps to a meaningful confidence. Tune against real
+// genuine-vs-forged samples using the per-metric breakdown logged in development.
+const SIGNATURE_MATCH_THRESHOLD = 0.45;
+
 const extractSignatures = async (imageUrl: string, isDrawn: boolean = false): Promise<cv.Mat[]> => {
     if (!imageUrl) {
       throw new Error('Invalid signature URL');
@@ -351,180 +357,233 @@ const extractSignatures = async (imageUrl: string, isDrawn: boolean = false): Pr
   
 
   const calculateSimilarity = async (signature1: cv.Mat, signature2: cv.Mat): Promise<number> => {
-    try {
-      // Step 1: Resize both signatures to same size
-      const size = new cv.Size(256, 256);
-      const resized1 = new cv.Mat();
-      const resized2 = new cv.Mat();
-      cv.resize(signature1, resized1, size, 0, 0, cv.INTER_LINEAR);
-      cv.resize(signature2, resized2, size, 0, 0, cv.INTER_LINEAR);
-  
-      // Step 2: Ensure binary images with adaptive thresholding
-      const binary1 = new cv.Mat();
-      const binary2 = new cv.Mat();
-      cv.adaptiveThreshold(resized1, binary1, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
-      cv.adaptiveThreshold(resized2, binary2, 255, cv.ADAPTIVE_THRESH_GAUSSIAN_C, cv.THRESH_BINARY_INV, 11, 2);
-  
-      // Step 3: Find contours for shape analysis
-      const contours1 = new cv.MatVector();
-      const contours2 = new cv.MatVector();
-      const hierarchy = new cv.Mat();
-  
-      cv.findContours(binary1, contours1, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-      cv.findContours(binary2, contours2, hierarchy, cv.RETR_EXTERNAL, cv.CHAIN_APPROX_SIMPLE);
-  
-      // Step 4: Calculate shape metrics
-      const getShapeMetrics = (contours: cv.MatVector) => {
-        let totalPoints = 0;
-        let totalPerimeter = 0;
-        let totalArea = 0;
-        let boundingRectArea = 0;
-  
-        for (let i = 0; i < contours.size(); i++) {
-          const contour = contours.get(i);
-          totalPoints += contour.data32S.length / 2;
-          totalPerimeter += cv.arcLength(contour, true);
-          const area = cv.contourArea(contour);
-          totalArea += area;
-  
-          // Calculate bounding rect area
-          const rect = cv.boundingRect(contour);
-          boundingRectArea += rect.width * rect.height;
-        }
-  
-        return {
-          points: totalPoints,
-          perimeter: totalPerimeter,
-          area: totalArea,
-          complexity: totalArea > 0 ? (totalPerimeter * totalPerimeter) / (4 * Math.PI * totalArea) : 0,
-          extent: totalArea > 0 ? totalArea / boundingRectArea : 0
-        };
-      };
-  
-      const metrics1 = getShapeMetrics(contours1);
-      const metrics2 = getShapeMetrics(contours2);
-  
-      // Step 5: Calculate various similarity measures
-      const calculateMetricSimilarity = (a: number, b: number) => {
-        const max = Math.max(Math.abs(a), Math.abs(b));
-        return max === 0 ? 1 : 1 - Math.abs(a - b) / max;
-      };
-  
-      // Calculate individual similarities
-      const complexitySimilarity = calculateMetricSimilarity(metrics1.complexity, metrics2.complexity);
-      const pointsSimilarity = calculateMetricSimilarity(metrics1.points, metrics2.points);
-      const areaSimilarity = calculateMetricSimilarity(metrics1.area, metrics2.area);
-      const extentSimilarity = calculateMetricSimilarity(metrics1.extent, metrics2.extent);
-  
-      // Step 6: Pixel-wise similarity
-      const diff = new cv.Mat();
-      cv.absdiff(binary1, binary2, diff);
-      const totalPixels = size.width * size.height;
-      const nonZeroPixels = cv.countNonZero(diff);
-      const pixelSimilarity = 1 - (nonZeroPixels / totalPixels);
-  
-      // Step 7: Template matching similarity
-      const templateResult = new cv.Mat();
-      cv.matchTemplate(binary1, binary2, templateResult, cv.TM_CCOEFF_NORMED);
-      
-      // Corrected minMaxLoc usage
-      const result = cv.minMaxLoc(templateResult, new cv.Mat()); // Added an empty mask
-      const templateSimilarity = result.maxVal;
-  
-      // Step 8: Calculate final similarity score with weighted components
-      const weights = {
-        pixel: 0.35,      // Pixel-wise comparison
-        template: 0.25,   // Template matching
-        complexity: 0.15, // Shape complexity
-        points: 0.15,     // Number of points
-        area: 0.05,       // Area comparison
-        extent: 0.05      // Extent (density) comparison
-      };
+    // Canonical canvas. Aspect-preserving normalization removes position/scale
+    // differences so the score reflects stroke SHAPE, not where the ink sits or how big it is.
+    const CANON_W = 256;
+    const CANON_H = 128;
+    const PAD = 8;
+    const GRID_X = 8;
+    const GRID_Y = 4;
 
-    
-  
-      const finalSimilarity = (
-        pixelSimilarity * weights.pixel +
-        templateSimilarity * weights.template +
-        complexitySimilarity * weights.complexity +
-        pointsSimilarity * weights.points +
-        areaSimilarity * weights.area +
-        extentSimilarity * weights.extent
-      );
-  
-      // Debug visualization
-      if (process.env.NODE_ENV === 'development') {
-        const debugContainer = document.createElement('div');
-        debugContainer.style.cssText = `
-          position: fixed;
-          top: 20px;
-          right: 20px;
-          background: white;
-          padding: 15px;
-          border-radius: 8px;
-          box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-          z-index: 10000;
-          font-family: monospace;
-        `;
-  
-        const createDebugImage = (title: string, mat: cv.Mat) => {
-          const wrapper = document.createElement('div');
-          wrapper.style.marginBottom = '10px';
-  
-          const label = document.createElement('div');
-          label.textContent = title;
-          label.style.fontWeight = 'bold';
-  
-          const canvas = document.createElement('canvas');
-          cv.imshow(canvas, mat);
-          canvas.style.width = '200px';
-          canvas.style.height = '200px';
-          canvas.style.border = '1px solid #ccc';
-  
-          wrapper.appendChild(label);
-          wrapper.appendChild(canvas);
-          return wrapper;
-        };
-  
-        debugContainer.appendChild(createDebugImage('Binary 1', binary1));
-        debugContainer.appendChild(createDebugImage('Binary 2', binary2));
-        debugContainer.appendChild(createDebugImage('Difference', diff));
-  
-        const scoresDiv = document.createElement('div');
-        scoresDiv.innerHTML = `
-          <div style="margin-top: 10px;">
-            <div>Pixel Similarity: ${(pixelSimilarity * 100).toFixed(1)}%</div>
-            <div>Template Match: ${(templateSimilarity * 100).toFixed(1)}%</div>
-            <div>Complexity: ${(complexitySimilarity * 100).toFixed(1)}%</div>
-            <div>Points: ${(pointsSimilarity * 100).toFixed(1)}%</div>
-            <div>Area: ${(areaSimilarity * 100).toFixed(1)}%</div>
-            <div>Extent: ${(extentSimilarity * 100).toFixed(1)}%</div>
-            <div style="font-weight: bold; margin-top: 5px;">
-              Final Score: ${(finalSimilarity * 100).toFixed(1)}%
-            </div>
-          </div>
-        `;
-        debugContainer.appendChild(scoresDiv);
-  
-        document.body.appendChild(debugContainer);
-        setTimeout(() => document.body.removeChild(debugContainer), 5000);
+    // Normalize a binary ink mask (ink = 255) into a fixed, centered, aspect-preserving
+    // canvas. Leak-safe: every internal Mat is released even if an OpenCV call throws.
+    const normalize = (src: cv.Mat): cv.Mat => {
+      let work: cv.Mat | null = null;
+      let crop: cv.Mat | null = null;
+      let rs: cv.Mat | null = null;
+      let dstRoi: cv.Mat | null = null;
+      let canvas: cv.Mat | null = null;
+      try {
+        work = new cv.Mat();
+        if (src.channels() > 1) {
+          cv.cvtColor(src, work, cv.COLOR_RGBA2GRAY);
+        } else {
+          src.copyTo(work);
+        }
+        cv.threshold(work, work, 127, 255, cv.THRESH_BINARY);
+
+        // Ink bounding box straight from pixels — robust to thin (~1px) strokes whose
+        // contour polygon area is ~0 (which a contourArea filter would wrongly drop).
+        const rows = work.rows;
+        const cols = work.cols;
+        const wd = work.data;
+        let minX = cols, minY = rows, maxX = -1, maxY = -1;
+        for (let y = 0; y < rows; y++) {
+          const rowBase = y * cols;
+          for (let x = 0; x < cols; x++) {
+            if (wd[rowBase + x] > 0) {
+              if (x < minX) minX = x;
+              if (x > maxX) maxX = x;
+              if (y < minY) minY = y;
+              if (y > maxY) maxY = y;
+            }
+          }
+        }
+
+        canvas = cv.Mat.zeros(CANON_H, CANON_W, cv.CV_8UC1);
+        if (maxX < minX || maxY < minY) {
+          const empty = canvas;
+          canvas = null; // ownership transfers to caller
+          return empty;
+        }
+
+        const bw = maxX - minX + 1;
+        const bh = maxY - minY + 1;
+        crop = work.roi(new cv.Rect(minX, minY, bw, bh));
+
+        const scale = Math.min((CANON_W - PAD * 2) / bw, (CANON_H - PAD * 2) / bh);
+        const nw = Math.max(1, Math.round(bw * scale));
+        const nh = Math.max(1, Math.round(bh * scale));
+
+        rs = new cv.Mat();
+        cv.resize(crop, rs, new cv.Size(nw, nh), 0, 0, cv.INTER_AREA);
+        cv.threshold(rs, rs, 127, 255, cv.THRESH_BINARY);
+
+        const xo = Math.floor((CANON_W - nw) / 2);
+        const yo = Math.floor((CANON_H - nh) / 2);
+        dstRoi = canvas.roi(new cv.Rect(xo, yo, nw, nh));
+        rs.copyTo(dstRoi);
+
+        const out = canvas;
+        canvas = null; // ownership transfers to caller
+        return out;
+      } catch (e) {
+        canvas?.delete();
+        throw e;
+      } finally {
+        work?.delete();
+        crop?.delete();
+        rs?.delete();
+        dstRoi?.delete();
       }
-  
-      // Cleanup
-      resized1.delete();
-      resized2.delete();
-      binary1.delete();
-      binary2.delete();
-      contours1.delete();
-      contours2.delete();
-      hierarchy.delete();
-      diff.delete();
-      templateResult.delete();
-  
+    };
+
+    // Row/col ink projection profiles + a coarse 2D zoning histogram (ink pixels per
+    // grid cell) of a normalized canvas, all computed in a single pass.
+    const features = (m: cv.Mat) => {
+      const rows = m.rows;
+      const cols = m.cols;
+      const data = m.data;
+      const row = new Float64Array(rows);
+      const col = new Float64Array(cols);
+      const zones = new Float64Array(GRID_X * GRID_Y);
+      const cellW = cols / GRID_X;
+      const cellH = rows / GRID_Y;
+      let ink = 0;
+      for (let y = 0; y < rows; y++) {
+        const rowBase = y * cols;
+        const gy = Math.min(GRID_Y - 1, Math.floor(y / cellH));
+        for (let x = 0; x < cols; x++) {
+          if (data[rowBase + x] > 0) {
+            row[y]++;
+            col[x]++;
+            const gx = Math.min(GRID_X - 1, Math.floor(x / cellW));
+            zones[gy * GRID_X + gx]++;
+            ink++;
+          }
+        }
+      }
+      return { row, col, zones, ink };
+    };
+
+    // Pearson correlation of two equal-length arrays, clamped to [0, 1].
+    const pearson = (a: Float64Array, b: Float64Array): number => {
+      const n = a.length;
+      let sa = 0;
+      let sb = 0;
+      for (let i = 0; i < n; i++) {
+        sa += a[i];
+        sb += b[i];
+      }
+      const ma = sa / n;
+      const mb = sb / n;
+      let num = 0;
+      let da = 0;
+      let db = 0;
+      for (let i = 0; i < n; i++) {
+        const xa = a[i] - ma;
+        const xb = b[i] - mb;
+        num += xa * xb;
+        da += xa * xa;
+        db += xb * xb;
+      }
+      if (da === 0 || db === 0) return 0;
+      return Math.max(0, num / Math.sqrt(da * db));
+    };
+
+    // Cosine similarity of two non-negative vectors, in [0, 1].
+    const cosine = (a: Float64Array, b: Float64Array): number => {
+      let dot = 0;
+      let na = 0;
+      let nb = 0;
+      for (let i = 0; i < a.length; i++) {
+        dot += a[i] * b[i];
+        na += a[i] * a[i];
+        nb += b[i] * b[i];
+      }
+      if (na === 0 || nb === 0) return 0;
+      return Math.max(0, Math.min(1, dot / Math.sqrt(na * nb)));
+    };
+
+    let n1: cv.Mat | null = null;
+    let n2: cv.Mat | null = null;
+    let kernel: cv.Mat | null = null;
+    let d1: cv.Mat | null = null;
+    let d2: cv.Mat | null = null;
+    let inter: cv.Mat | null = null;
+    let tm: cv.Mat | null = null;
+    let maskTm: cv.Mat | null = null;
+
+    try {
+      n1 = normalize(signature1);
+      n2 = normalize(signature2);
+
+      const ink1 = cv.countNonZero(n1);
+      const ink2 = cv.countNonZero(n2);
+      // No real ink in one of them -> not a match.
+      if (ink1 < 15 || ink2 < 15) return 0;
+
+      // Metric (primary): mean-subtracted normalized cross-correlation of the aligned
+      // masks. This is the key discriminator — for two DIFFERENT signatures it is ~0
+      // even when both fill the canvas, while a genuine match correlates strongly. This
+      // is what prevents "a different scrawl still scores high".
+      tm = new cv.Mat();
+      cv.matchTemplate(n1, n2, tm, cv.TM_CCOEFF_NORMED);
+      // minMaxLoc's 2nd positional arg is the optional mask at runtime; an empty Mat
+      // means "no mask". It is passed so the call type-checks against the binding.
+      maskTm = new cv.Mat();
+      const mm = cv.minMaxLoc(tm, maskTm);
+      const ncc = Number.isFinite(mm.maxVal) ? Math.max(0, mm.maxVal) : 0;
+
+      // Metric: Dice overlap of lightly (3x3) dilated ink — stroke-path overlap with a
+      // small tolerance for genuine pen variation. Kept tight so two different
+      // signatures don't match merely by filling the same footprint.
+      kernel = cv.getStructuringElement(cv.MORPH_ELLIPSE, new cv.Size(3, 3));
+      d1 = new cv.Mat();
+      d2 = new cv.Mat();
+      cv.dilate(n1, d1, kernel);
+      cv.dilate(n2, d2, kernel);
+      inter = new cv.Mat();
+      cv.bitwise_and(d1, d2, inter);
+      const areaD1 = cv.countNonZero(d1);
+      const areaD2 = cv.countNonZero(d2);
+      const interCount = cv.countNonZero(inter);
+      const dice = (areaD1 + areaD2) > 0 ? (2 * interCount) / (areaD1 + areaD2) : 0;
+
+      // Metric: 2D zoning (ink per grid cell, arrangement-sensitive) + marginal row/col
+      // profiles (weaker supporting cue).
+      const f1 = features(n1);
+      const f2 = features(n2);
+      const zoneSim = cosine(f1.zones, f2.zones);
+      const profileSim = (pearson(f1.row, f2.row) + pearson(f1.col, f2.col)) / 2;
+
+      // Soft gate: down-weight when the two masks hold very different ink amounts.
+      const densityRatio = Math.min(ink1, ink2) / Math.max(ink1, ink2);
+
+      let finalSimilarity =
+        0.35 * ncc + 0.3 * dice + 0.2 * zoneSim + 0.15 * profileSim;
+      finalSimilarity *= 0.7 + 0.3 * densityRatio;
+      finalSimilarity = Math.max(0, Math.min(1, finalSimilarity));
+
+      if (process.env.NODE_ENV === 'development') {
+        console.log(
+          `[signature] ncc=${ncc.toFixed(3)} dice=${dice.toFixed(3)} zone=${zoneSim.toFixed(3)} profile=${profileSim.toFixed(3)} density=${densityRatio.toFixed(3)} => final=${(finalSimilarity * 100).toFixed(1)}% (threshold ${(SIGNATURE_MATCH_THRESHOLD * 100).toFixed(0)}%)`
+        );
+      }
+
       return finalSimilarity;
     } catch (error) {
       console.warn('Error calculating similarity:', error);
       throw error;
+    } finally {
+      n1?.delete();
+      n2?.delete();
+      kernel?.delete();
+      d1?.delete();
+      d2?.delete();
+      inter?.delete();
+      tm?.delete();
+      maskTm?.delete();
     }
   };
 
@@ -562,10 +621,12 @@ const SignatureVerificationModal: React.FC<SignatureModalProps> = ({
     }
 
     setIsProcessing(true);
-    
+
+    let storedSignatures: cv.Mat[] = [];
+    let drawnSignatures: cv.Mat[] = [];
     try {
-      const storedSignatures = await extractSignatures(storedSignature, false);
-      const drawnSignatures = await extractSignatures(drawnSignature, true);
+      storedSignatures = await extractSignatures(storedSignature, false);
+      drawnSignatures = await extractSignatures(drawnSignature, true);
 
       if (storedSignatures.length === 0) {
         throw new Error('No stored signatures found');
@@ -598,10 +659,6 @@ const SignatureVerificationModal: React.FC<SignatureModalProps> = ({
         );
       }
 
-      // Cleanup
-      storedSignatures.forEach(mat => mat.delete());
-      drawnSignatures.forEach(mat => mat.delete());
-
       const flatScores = scores.flat();
       setSimilarityScores(flatScores);
       setShowResults(true);
@@ -609,7 +666,7 @@ const SignatureVerificationModal: React.FC<SignatureModalProps> = ({
       const maxSimilarity = Math.max(...flatScores);
       console.log('Final similarity score:', maxSimilarity);
 
-      if (maxSimilarity > 0.2) { // Example threshold
+      if (maxSimilarity >= SIGNATURE_MATCH_THRESHOLD) {
         if (!hasConfirmedRef.current) {
           hasConfirmedRef.current = true;
           await onConfirm(drawnSignature);
@@ -625,6 +682,9 @@ const SignatureVerificationModal: React.FC<SignatureModalProps> = ({
       console.warn('Signature verification error:', error);
       onError(error instanceof Error ? error.message : 'Failed to verify signature');
     } finally {
+      // Release extracted Mats on every path (success or thrown) to avoid WASM-heap leaks.
+      storedSignatures.forEach((mat) => { try { mat.delete(); } catch { /* already freed */ } });
+      drawnSignatures.forEach((mat) => { try { mat.delete(); } catch { /* already freed */ } });
       setIsProcessing(false);
     }
   };
