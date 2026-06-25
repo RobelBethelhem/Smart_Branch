@@ -4,6 +4,7 @@ import React, { useRef, useEffect, useState, useCallback } from 'react';
 import { motion } from 'framer-motion';
 import * as faceapi from 'face-api.js';
 import { X, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import { loadAntiSpoofModel, scoreLiveness } from '@/utils/antiSpoof';
 
 interface FaceVerificationModalProps {
   onClose: () => void;
@@ -40,9 +41,19 @@ const FLASH_THRESHOLD = 0.06;
 // When true the light test BLOCKS when correlation < FLASH_THRESHOLD (a still photo
 // or a replayed video on a screen cannot react to our random flash). When false it
 // only measures + shows the value. Tune FLASH_THRESHOLD from the on-screen signal.
-const FLASH_ENFORCE = true;
+// Measure-only while rolling out the offline anti-spoof MODEL (below), which is the
+// stronger replay defense. Re-enable the flash as a second layer if you want.
+const FLASH_ENFORCE = false;
 
 const DESCRIPTOR_SAMPLES = 5;
+
+// Offline anti-spoof MODEL gate (TF.js). See utils/antiSpoof.ts and
+// public/models/antispoof/README.md. It is skipped automatically if no model file
+// is deployed. Keep ENFORCE=false until you validate liveProb on the kiosk
+// (live should be high, photo/video low), then set it true and tune the threshold.
+const ANTISPOOF_THRESHOLD = 0.5; // minimum P(live) to accept
+const ANTISPOOF_ENFORCE = false;
+
 // Overlay live EAR/MAR/yaw values during liveness to calibrate thresholds.
 // Set to false for production once tuned.
 const LIVENESS_DEBUG = true;
@@ -228,6 +239,27 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
 
       if (process.env.NODE_ENV === 'development') {
         console.log(`[face] bestDistance=${best.toFixed(3)} (threshold ${FACE_MATCH_THRESHOLD})`);
+      }
+
+      // Offline anti-spoof MODEL gate (skipped automatically if no model is deployed).
+      let liveProb: number | null = null;
+      try {
+        if (videoRef.current) {
+          const sd = await faceapi.detectSingleFace(videoRef.current, DETECTOR_OPTIONS);
+          if (sd && videoRef.current) liveProb = await scoreLiveness(videoRef.current, sd.box);
+        }
+      } catch {
+        /* ignore — treated as "no score" below */
+      }
+      if (!mountedRef.current) return;
+      console.log(
+        `[antispoof] liveProb=${liveProb === null ? 'n/a (no model)' : liveProb.toFixed(3)} (threshold ${ANTISPOOF_THRESHOLD}, enforce=${ANTISPOOF_ENFORCE})`
+      );
+      if (ANTISPOOF_ENFORCE && liveProb !== null && liveProb < ANTISPOOF_THRESHOLD) {
+        cleanup();
+        setError('Liveness check failed — please present a live face (photos and videos are rejected).');
+        setPhase('error');
+        return;
       }
 
       if (best === Infinity) {
@@ -516,6 +548,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
       ]);
       if (!mountedRef.current) return;
+      void loadAntiSpoofModel(); // preload the anti-spoof model (no-op if not deployed)
 
       const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'user' } });
       if (!mountedRef.current) {
