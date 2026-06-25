@@ -328,11 +328,11 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
     if (!mountedRef.current) return;
     const corr = pearson(intensities, signals);
     setFlashCorr(corr);
-    if (process.env.NODE_ENV === 'development') {
-      console.log(
-        `[liveness-flash] correlation=${corr.toFixed(3)} (threshold ${FLASH_THRESHOLD}) samples=${intensities.length}`
-      );
-    }
+    // Always logged so the value can be read from the console during calibration,
+    // even in a production build. Remove once FLASH_THRESHOLD is tuned.
+    console.log(
+      `[liveness-flash] correlation=${corr.toFixed(3)} (threshold ${FLASH_THRESHOLD}) enforce=${FLASH_ENFORCE} samples=${intensities.length}`
+    );
     if (!FLASH_ENFORCE || corr >= FLASH_THRESHOLD) {
       captureAndMatch();
     } else {
