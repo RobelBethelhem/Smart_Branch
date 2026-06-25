@@ -487,6 +487,18 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
 
   const init = async () => {
     try {
+      // getUserMedia only exists in a SECURE CONTEXT (HTTPS or http://localhost).
+      // On a plain-HTTP LAN origin like http://10.1.1.181:3000 the browser hides
+      // navigator.mediaDevices, so the webcam can never start. Detect that and tell
+      // the user exactly how to enable it, instead of a generic failure.
+      if (typeof navigator === 'undefined' || !navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        setError(
+          'The webcam needs a secure connection. This page is served over plain HTTP, so the browser blocks the camera. To enable it: (1) open the app on this PC at http://localhost:3000, or (2) serve it over HTTPS, or (3) for testing in Chrome go to chrome://flags/#unsafely-treat-insecure-origin-as-secure, enable it, add this site address (e.g. http://10.1.1.181:3000), and relaunch Chrome.'
+        );
+        setPhase('error');
+        return;
+      }
+
       await Promise.all([
         faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
         faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
@@ -509,9 +521,19 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         return;
       }
       startLiveness();
-    } catch {
+    } catch (err) {
       if (!mountedRef.current) return;
-      setError('Failed to access camera. Please allow camera access and try again.');
+      const name = (err as { name?: string } | null)?.name;
+      let msg = 'Failed to access the camera. Please try again.';
+      if (name === 'NotAllowedError' || name === 'SecurityError') {
+        msg =
+          'Camera access was blocked. Click the camera icon in the browser address bar, allow the camera, then press Try Again.';
+      } else if (name === 'NotFoundError' || name === 'DevicesNotFoundError') {
+        msg = 'No camera was found on this device.';
+      } else if (name === 'NotReadableError' || name === 'TrackStartError') {
+        msg = 'The camera is being used by another application. Close it and press Try Again.';
+      }
+      setError(msg);
       setPhase('error');
     }
   };
