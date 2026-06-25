@@ -42,6 +42,12 @@ const DESCRIPTOR_SAMPLES = 5;
 // Overlay live EAR/MAR/yaw values during liveness to calibrate thresholds.
 // Set to false for production once tuned.
 const LIVENESS_DEBUG = true;
+
+// Detector tuning. The library default (inputSize 416, scoreThreshold 0.5) is slow
+// and often fails to detect a clearly-present face on a webcam/kiosk camera, which
+// shows "Position your face in the frame". A lower score is more lenient and a
+// smaller input size is much faster (more frames per second = responsive + reliable).
+const DETECTOR_OPTIONS = new faceapi.TinyFaceDetectorOptions({ inputSize: 320, scoreThreshold: 0.3 });
 // ---------------------------------------------------------------------------
 
 type Pt = { x: number; y: number };
@@ -190,7 +196,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
     try {
       const img = await faceapi.fetchImage(profileImage);
       const profileDet = await faceapi
-        .detectSingleFace(img, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(img, DETECTOR_OPTIONS)
         .withFaceLandmarks()
         .withFaceDescriptor();
       if (!mountedRef.current) return;
@@ -205,7 +211,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
       for (let i = 0; i < DESCRIPTOR_SAMPLES; i++) {
         if (!mountedRef.current || !videoRef.current) break;
         const liveDet = await faceapi
-          .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+          .detectSingleFace(videoRef.current, DETECTOR_OPTIONS)
           .withFaceLandmarks()
           .withFaceDescriptor();
         if (liveDet) {
@@ -262,7 +268,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
     }
 
     // Lock a stable face box first, from the same <video> we will sample.
-    const det0 = await faceapi.detectSingleFace(v, new faceapi.TinyFaceDetectorOptions());
+    const det0 = await faceapi.detectSingleFace(v, DETECTOR_OPTIONS);
     if (!mountedRef.current) return;
     const vw = v.videoWidth;
     const vh = v.videoHeight;
@@ -355,10 +361,11 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
 
   const livenessTick = async () => {
     if (!mountedRef.current || busyRef.current || !videoRef.current) return;
+    if (videoRef.current.readyState < 2) return; // no decoded frame yet — skip this tick
     busyRef.current = true;
     try {
       const det = await faceapi
-        .detectSingleFace(videoRef.current, new faceapi.TinyFaceDetectorOptions())
+        .detectSingleFace(videoRef.current, DETECTOR_OPTIONS)
         .withFaceLandmarks();
       if (!mountedRef.current) return;
 
