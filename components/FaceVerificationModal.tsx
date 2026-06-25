@@ -31,9 +31,12 @@ const BASELINE_FRAMES = 5;
 // Active anti-replay light test. The screen flashes a RANDOM bright/dark pattern;
 // a live 3D face reflects it (face brightens vs background in sync). A photo or a
 // replayed video reflects uniformly / cannot react -> ~0 correlation -> rejected.
-const FLASH_STEPS = 12;
+const FLASH_STEPS = 16;
 const FLASH_STEP_MS = 200;
-const FLASH_THRESHOLD = 0.3; // min correlation to accept (tune on the kiosk)
+// Calibrated on the kiosk: a live face measured ~0.11, a phone-video replay ~0.02.
+// 0.06 sits between them (live passes, replay is blocked). Re-tune from the console
+// `[liveness-flash] correlation=` values if the camera/lighting changes.
+const FLASH_THRESHOLD = 0.06;
 // When true the light test BLOCKS when correlation < FLASH_THRESHOLD (a still photo
 // or a replayed video on a screen cannot react to our random flash). When false it
 // only measures + shows the value. Tune FLASH_THRESHOLD from the on-screen signal.
@@ -566,7 +569,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
   }, []);
 
   const markerLeftPct = 50 + turn.marker * 45;
-  const flashBg = phase === 'flash' ? (flashOn ? '#ffffff' : '#0a0a0a') : undefined;
+  const flashBg = phase === 'flash' ? (flashOn ? '#ffffff' : '#000000') : undefined;
 
   return (
     <motion.div
