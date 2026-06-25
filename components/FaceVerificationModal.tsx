@@ -51,8 +51,12 @@ const DESCRIPTOR_SAMPLES = 5;
 // public/models/antispoof/README.md. It is skipped automatically if no model file
 // is deployed. Keep ENFORCE=false until you validate liveProb on the kiosk
 // (live should be high, photo/video low), then set it true and tune the threshold.
-const ANTISPOOF_THRESHOLD = 0.5; // minimum P(live) to accept
-const ANTISPOOF_ENFORCE = false;
+// Accept only when the model is at least this confident the face is live.
+// 0.5 is the standard MiniFASNet decision boundary (a genuine face usually scores
+// ~0.9+, a photo/screen replay well under 0.3). Raise toward 0.6-0.7 for stricter
+// security, or lower if genuine users are wrongly rejected.
+const ANTISPOOF_THRESHOLD = 0.5;
+const ANTISPOOF_ENFORCE = true;
 
 // Overlay live EAR/MAR/yaw values during liveness to calibrate thresholds.
 // Set to false for production once tuned.
