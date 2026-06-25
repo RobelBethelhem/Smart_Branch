@@ -16,13 +16,11 @@ interface FaceVerificationModalProps {
 const FACE_MATCH_THRESHOLD = 0.5;
 
 // Gesture liveness (heuristics over the 68 facial landmarks).
-const BLINK_DROP_ABS = 0.08; // blink = EAR drops at least this far below the user's open EAR
-const BLINK_DROP_RATIO = 0.55; // ...or EAR falls below openEAR * this (whichever first)
-const OPEN_RATIO = 0.82; // "eyes open" when EAR > openEAR * this
-const MAR_OPEN = 0.4; // inner-lip mouth-open ratio above this
-const MAR_CLOSED = 0.25; // mouth treated as closed below this
-const YAW_TURN = 0.16; // |yaw - baseline| beyond this = a turn (roll-invariant)
-const YAW_NEUTRAL = 0.12; // |yaw - baseline| below this = centered
+const BLINK_DROP_ABS = 0.06; // blink = EAR drops at least this far below the user's open EAR
+const BLINK_DROP_RATIO = 0.7; // ...or EAR falls below openEAR * this (whichever first)
+const MAR_OPEN = 0.3; // inner-lip mouth-open ratio above this
+const MAR_CLOSED = 0.2; // mouth treated as closed below this (baseline)
+const YAW_TURN = 0.13; // |yaw - baseline| beyond this = a head turn (either direction)
 const ACTION_TIMEOUT_MS = 8000; // per-action limit
 const SEQUENCE_LENGTH = 2; // gesture actions before the light test
 const GLOBAL_DEADLINE_MS = SEQUENCE_LENGTH * ACTION_TIMEOUT_MS + 8000; // >= sum of per-action budgets
@@ -341,7 +339,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
       setStatus('Open your mouth');
       setTurn((t) => ({ ...t, active: false }));
     } else {
-      setStatus('Turn your head until the dot reaches the highlighted zone');
+      setStatus('Turn your head to either side until the dot reaches a green zone');
       setTurn({ active: true, marker: 0, dir: a.dir ?? 1 });
     }
   };
@@ -412,28 +410,14 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         return;
       }
 
-      const openThr = st.openEAR * OPEN_RATIO;
-      const isNeutral = ear > openThr && mar < MAR_CLOSED && Math.abs(yaw - st.baseYaw) < YAW_NEUTRAL;
       const action = st.seq[st.idx];
+      const rel = yaw - st.baseYaw;
 
       if (action.kind === 'turn') {
-        const rel = yaw - st.baseYaw;
-        setTurn({ active: true, marker: Math.max(-1, Math.min(1, rel / (YAW_TURN * 1.6))), dir: action.dir ?? 1 });
+        setTurn({ active: true, marker: Math.max(-1, Math.min(1, rel / (YAW_TURN * 1.4))), dir: action.dir ?? 1 });
       }
 
-      // Each action requires a fresh return-to-neutral AFTER its prompt, then the
-      // gesture — so it must be performed on cue.
-      if (!st.armReady) {
-        if (isNeutral) {
-          st.armReady = true;
-          st.minEAR = Infinity;
-        } else {
-          setStatus('Return to neutral (look straight, mouth closed)');
-        }
-        return;
-      }
-
-      if (ear < st.minEAR) st.minEAR = ear; // track the lowest EAR so a brief blink between frames still counts
+      if (ear < st.minEAR) st.minEAR = ear; // lowest EAR since the prompt, so a brief blink still counts
 
       let done = false;
       if (action.kind === 'blink') {
@@ -441,8 +425,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
       } else if (action.kind === 'mouth') {
         if (mar > MAR_OPEN) done = true;
       } else {
-        const rel = yaw - st.baseYaw;
-        if (Math.sign(rel) === action.dir && Math.abs(rel) > YAW_TURN) done = true;
+        if (Math.abs(rel) > YAW_TURN) done = true; // accept a head turn in EITHER direction
       }
 
       if (!done) return;
@@ -633,11 +616,8 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
           {phase === 'liveness' && turn.active && (
             <div className="absolute bottom-4 left-6 right-6">
               <div className="relative h-3 rounded-full bg-white/30">
-                <div
-                  className={`absolute top-0 bottom-0 w-1/3 bg-emerald-400/70 rounded-full ${
-                    turn.dir === 1 ? 'right-0' : 'left-0'
-                  }`}
-                />
+                <div className="absolute top-0 bottom-0 left-0 w-1/4 bg-emerald-400/70 rounded-full" />
+                <div className="absolute top-0 bottom-0 right-0 w-1/4 bg-emerald-400/70 rounded-full" />
                 <div
                   className="absolute -top-1.5 h-6 w-6 -ml-3 rounded-full bg-white border-2 border-[#E60000] shadow"
                   style={{ left: `${markerLeftPct}%` }}
