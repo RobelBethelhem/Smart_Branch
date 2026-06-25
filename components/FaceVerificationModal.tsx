@@ -34,9 +34,10 @@ const BASELINE_FRAMES = 5;
 const FLASH_STEPS = 12;
 const FLASH_STEP_MS = 200;
 const FLASH_THRESHOLD = 0.3; // min correlation to accept (tune on the kiosk)
-// TEMP while calibrating: when false the light test only MEASURES + shows the
-// correlation and never blocks. Set true once FLASH_THRESHOLD is tuned for the kiosk.
-const FLASH_ENFORCE = false;
+// When true the light test BLOCKS when correlation < FLASH_THRESHOLD (a still photo
+// or a replayed video on a screen cannot react to our random flash). When false it
+// only measures + shows the value. Tune FLASH_THRESHOLD from the on-screen signal.
+const FLASH_ENFORCE = true;
 
 const DESCRIPTOR_SAMPLES = 5;
 // Overlay live EAR/MAR/yaw values during liveness to calibrate thresholds.
