@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H 0.0.0.0",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
@@ -37,6 +37,7 @@
     "lucide-react": "^0.441.0",
     "nanoid": "^5.0.9",
     "next": "^15.0.3",
+    "onnxruntime-web": "^1.27.0",
     "oracledb": "^6.6.0",
     "postcss": "8.4.47",
     "qrcode.react": "^4.1.0",

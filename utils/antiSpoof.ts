@@ -1,115 +1,125 @@
-// Optional passive anti-spoofing (face liveness) using a TensorFlow.js model.
+// Passive face anti-spoofing (liveness) — MiniFASNet-V2, Apache-2.0
+// (minivision-ai / Silent-Face-Anti-Spoofing), run fully offline in the browser
+// via onnxruntime-web with self-hosted wasm (no cloud, no per-check cost, no lock-in).
 //
-// This is OFFLINE and FREE: drop a converted model at
-//   public/models/antispoof/model.json  (+ its weight .bin shard files)
-// and it runs entirely in the browser (no cloud, no per-check cost, no lock-in).
+//   model:   public/models/antispoof/minifasnet_v2.onnx   (1x3x80x80, NCHW, BGR, /255)
+//   runtime: public/ort/ort-wasm-simd-threaded.{wasm,mjs}
+//   output:  3-class softmax [live, print-attack, replay-attack] -> liveProb = out[0]
 //
-// If no model file is present, scoreLiveness() returns null and the caller skips
-// the gate — so the app keeps working until you add the model.
-//
-// The default preprocessing matches the MiniFASNet / Silent-Face-Anti-Spoofing
-// model (Apache-2.0). If you use a different model, adjust the constants below
-// (input size, crop scale, the output index that means "live"). See README in
-// public/models/antispoof/.
+// If the model or runtime fails to load, scoreLiveness() returns null and the
+// caller skips the gate (the app keeps working).
 
-export const ANTISPOOF_MODEL_URL = '/models/antispoof/model.json';
-export const ANTISPOOF_INPUT = 80; // model input side in px (MiniFASNet = 80)
-export const ANTISPOOF_CROP_SCALE = 2.7; // expand the face box before cropping (MiniFASNet ~2.7)
-export const ANTISPOOF_LIVE_INDEX = 1; // output index whose probability means "real/live"
+export const ANTISPOOF_MODEL_URL = '/models/antispoof/minifasnet_v2.onnx';
+export const ANTISPOOF_INPUT = 80; // model input side (px)
+export const ANTISPOOF_CROP_SCALE = 2.7; // expand the face box before cropping
 
 type Box = { x: number; y: number; width: number; height: number };
 
-let tfPromise: Promise<typeof import('@tensorflow/tfjs')> | null = null;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-let modelPromise: Promise<any | null> | null = null;
-let modelMissing = false;
+let ortPromise: Promise<any> | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let sessionPromise: Promise<any | null> | null = null;
+let unavailable = false;
+let canvas: HTMLCanvasElement | null = null;
 
-const getTf = () => {
-  if (!tfPromise) tfPromise = import('@tensorflow/tfjs');
-  return tfPromise;
+const getOrt = () => {
+  if (!ortPromise) {
+    ortPromise = (async () => {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ort: any = await import('onnxruntime-web');
+      ort.env.wasm.wasmPaths = '/ort/'; // self-hosted wasm (works offline / behind a proxy)
+      ort.env.wasm.numThreads = 1; // no SharedArrayBuffer / cross-origin isolation needed
+      return ort;
+    })();
+  }
+  return ortPromise;
 };
 
-// Loads (and caches) the model. Returns null if no model is deployed.
+// Loads (and caches) the model + runtime. Returns null if unavailable.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export const loadAntiSpoofModel = async (): Promise<any | null> => {
-  if (modelMissing) return null;
-  if (!modelPromise) {
-    modelPromise = (async () => {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const tf: any = await getTf();
+  if (unavailable) return null;
+  if (!sessionPromise) {
+    sessionPromise = (async () => {
       try {
-        return await tf.loadGraphModel(ANTISPOOF_MODEL_URL);
-      } catch {
-        try {
-          return await tf.loadLayersModel(ANTISPOOF_MODEL_URL);
-        } catch (e) {
-          modelMissing = true;
-          console.warn(
-            `[antispoof] No anti-spoof model at ${ANTISPOOF_MODEL_URL} — liveness model gate is disabled.`,
-            e
-          );
-          return null;
-        }
+        const ort = await getOrt();
+        return await ort.InferenceSession.create(ANTISPOOF_MODEL_URL, {
+          executionProviders: ['wasm'],
+        });
+      } catch (e) {
+        unavailable = true;
+        console.warn('[antispoof] could not load model/runtime — gate disabled.', e);
+        return null;
       }
     })();
   }
-  return modelPromise;
+  return sessionPromise;
 };
 
-// Probability (0..1) that the cropped face is a LIVE person, or null when no
-// model is deployed (caller should then skip the model gate).
+// Probability (0..1) that the cropped face is a LIVE person, or null when the
+// model/runtime is unavailable (caller should then skip the gate).
 export const scoreLiveness = async (
   source: HTMLVideoElement | HTMLCanvasElement,
   box: Box
 ): Promise<number | null> => {
-  const model = await loadAntiSpoofModel();
-  if (!model) return null;
+  const session = await loadAntiSpoofModel();
+  if (!session) return null;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const tf: any = await getTf();
+  const ort: any = await getOrt();
 
-  const w = (source as HTMLVideoElement).videoWidth || (source as HTMLCanvasElement).width;
-  const h = (source as HTMLVideoElement).videoHeight || (source as HTMLCanvasElement).height;
-  if (!w || !h) return null;
+  const sw = (source as HTMLVideoElement).videoWidth || (source as HTMLCanvasElement).width;
+  const sh = (source as HTMLVideoElement).videoHeight || (source as HTMLCanvasElement).height;
+  if (!sw || !sh) return null;
 
-  // Square crop, expanded around the face centre (models expect some margin).
+  // Square crop, expanded around the face centre (the model expects some margin).
   const cx = box.x + box.width / 2;
   const cy = box.y + box.height / 2;
   const side = Math.max(box.width, box.height) * ANTISPOOF_CROP_SCALE;
   let x0 = Math.round(cx - side / 2);
   let y0 = Math.round(cy - side / 2);
-  x0 = Math.max(0, Math.min(x0, w - 1));
-  y0 = Math.max(0, Math.min(y0, h - 1));
-  const s = Math.max(1, Math.min(Math.round(side), Math.min(w - x0, h - y0)));
+  x0 = Math.max(0, Math.min(x0, sw - 1));
+  y0 = Math.max(0, Math.min(y0, sh - 1));
+  const s = Math.max(1, Math.min(Math.round(side), Math.min(sw - x0, sh - y0)));
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let t: any;
+  if (!canvas) canvas = document.createElement('canvas');
+  canvas.width = ANTISPOOF_INPUT;
+  canvas.height = ANTISPOOF_INPUT;
+  const ctx = canvas.getContext('2d', { willReadFrequently: true });
+  if (!ctx) return null;
+  ctx.drawImage(source, x0, y0, s, s, 0, 0, ANTISPOOF_INPUT, ANTISPOOF_INPUT);
+  const { data } = ctx.getImageData(0, 0, ANTISPOOF_INPUT, ANTISPOOF_INPUT); // RGBA
+
+  // Build NCHW, BGR, /255 input tensor [1,3,80,80].
+  const n = ANTISPOOF_INPUT * ANTISPOOF_INPUT;
+  const input = new Float32Array(3 * n);
+  for (let i = 0; i < n; i++) {
+    input[i] = data[i * 4 + 2] / 255; // B
+    input[n + i] = data[i * 4 + 1] / 255; // G
+    input[2 * n + i] = data[i * 4] / 255; // R
+  }
+
   try {
-    t = tf.tidy(() => {
-      const px = tf.browser.fromPixels(source); // [h, w, 3]
-      const crop = px.slice([y0, x0, 0], [s, s, 3]); // [s, s, 3]
-      const resized = tf.image.resizeBilinear(crop, [ANTISPOOF_INPUT, ANTISPOOF_INPUT]);
-      const input = resized.toFloat().div(255).expandDims(0); // [1, H, W, 3]
-      const pred = model.predict(input);
-      return Array.isArray(pred) ? pred[0] : pred;
-    });
-    const data = Array.from((await t.data()) as Float32Array);
-    if (!data.length) return null;
+    const tensor = new ort.Tensor('float32', input, [1, 3, ANTISPOOF_INPUT, ANTISPOOF_INPUT]);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const feeds: Record<string, any> = {};
+    feeds[session.inputNames[0]] = tensor;
+    const results = await session.run(feeds);
+    const out = Array.from(results[session.outputNames[0]].data as Float32Array);
+    if (!out.length) return null;
 
-    // Single output -> sigmoid -> P(live). Multiple outputs -> softmax, take the
-    // configured live index.
-    if (data.length === 1) {
-      const v = data[0];
-      return v >= 0 && v <= 1 ? v : 1 / (1 + Math.exp(-v));
+    // Output is a 3-class softmax [live, print, replay]; re-softmax if it looks
+    // like raw logits (doesn't sum to ~1).
+    let probs = out;
+    const sum = out.reduce((a, b) => a + b, 0);
+    if (sum < 0.99 || sum > 1.01) {
+      const max = Math.max(...out);
+      const exps = out.map((v) => Math.exp(v - max));
+      const es = exps.reduce((a, b) => a + b, 0) || 1;
+      probs = exps.map((e) => e / es);
     }
-    const max = Math.max(...data);
-    const exps = data.map((v) => Math.exp(v - max));
-    const sum = exps.reduce((a, b) => a + b, 0) || 1;
-    const idx = Math.min(ANTISPOOF_LIVE_INDEX, data.length - 1);
-    return exps[idx] / sum;
+    return probs[0]; // P(live)
   } catch (e) {
-    console.warn('[antispoof] scoring failed:', e);
+    console.warn('[antispoof] inference failed:', e);
     return null;
-  } finally {
-    if (t) t.dispose();
   }
 };
