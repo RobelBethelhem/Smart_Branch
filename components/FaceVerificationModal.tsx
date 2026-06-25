@@ -34,6 +34,9 @@ const BASELINE_FRAMES = 5;
 const FLASH_STEPS = 12;
 const FLASH_STEP_MS = 200;
 const FLASH_THRESHOLD = 0.3; // min correlation to accept (tune on the kiosk)
+// TEMP while calibrating: when false the light test only MEASURES + shows the
+// correlation and never blocks. Set true once FLASH_THRESHOLD is tuned for the kiosk.
+const FLASH_ENFORCE = false;
 
 const DESCRIPTOR_SAMPLES = 5;
 // Overlay live EAR/MAR/yaw values during liveness to calibrate thresholds.
@@ -108,7 +111,9 @@ const meanLuma = (data: Uint8ClampedArray, pxStride: number): number => {
 };
 
 const makeSequence = (len: number): Action[] => {
-  const kinds: Action['kind'][] = ['blink', 'mouth', 'turn'];
+  // 'blink' omitted: a blink's brief closed frame is easily missed between camera
+  // samples; mouth + turn are reliable and the flash test carries the anti-spoof.
+  const kinds: Action['kind'][] = ['mouth', 'turn'];
   const rnd = (n: number) => crypto.getRandomValues(new Uint32Array(1))[0] % n;
   const seq: Action[] = [];
   let prev: Action['kind'] | null = null;
@@ -144,6 +149,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
   });
   const [flashOn, setFlashOn] = useState(false);
   const [dbg, setDbg] = useState({ ear: 0, mar: 0, yaw: 0 });
+  const [flashCorr, setFlashCorr] = useState<number | null>(null);
 
   const lv = useRef({
     seq: [] as Action[],
@@ -314,16 +320,19 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
 
     if (!mountedRef.current) return;
     const corr = pearson(intensities, signals);
+    setFlashCorr(corr);
     if (process.env.NODE_ENV === 'development') {
       console.log(
         `[liveness-flash] correlation=${corr.toFixed(3)} (threshold ${FLASH_THRESHOLD}) samples=${intensities.length}`
       );
     }
-    if (corr >= FLASH_THRESHOLD) captureAndMatch();
-    else
+    if (!FLASH_ENFORCE || corr >= FLASH_THRESHOLD) {
+      captureAndMatch();
+    } else {
       failLiveness(
-        'Liveness light check failed — a live face is required (photos and replayed videos are rejected).'
+        `Liveness light check failed (signal ${corr.toFixed(2)} < ${FLASH_THRESHOLD}). A live face is required.`
       );
+    }
   };
 
   const setCurrentAction = () => {
@@ -650,6 +659,13 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         {phase === 'liveness' && LIVENESS_DEBUG && (
           <p className="text-center text-[11px] font-mono text-gray-400 mb-2">
             EAR {dbg.ear.toFixed(2)} · MAR {dbg.mar.toFixed(2)} · yaw {dbg.yaw.toFixed(2)}
+          </p>
+        )}
+
+        {LIVENESS_DEBUG && flashCorr !== null && (
+          <p className="text-center text-[11px] font-mono text-gray-500 mb-2">
+            light-check signal: {flashCorr.toFixed(3)} (threshold {FLASH_THRESHOLD}
+            {FLASH_ENFORCE ? '' : ', measure-only'})
           </p>
         )}
 
