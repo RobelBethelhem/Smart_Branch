@@ -19,10 +19,10 @@ const FACE_MATCH_THRESHOLD = 0.5;
 const BLINK_DROP_ABS = 0.08; // blink = EAR drops at least this far below the user's open EAR
 const BLINK_DROP_RATIO = 0.55; // ...or EAR falls below openEAR * this (whichever first)
 const OPEN_RATIO = 0.82; // "eyes open" when EAR > openEAR * this
-const MAR_OPEN = 0.5; // mouth open above this
-const MAR_CLOSED = 0.35; // mouth closed below this
+const MAR_OPEN = 0.4; // inner-lip mouth-open ratio above this
+const MAR_CLOSED = 0.25; // mouth treated as closed below this
 const YAW_TURN = 0.16; // |yaw - baseline| beyond this = a turn (roll-invariant)
-const YAW_NEUTRAL = 0.08; // |yaw - baseline| below this = centered
+const YAW_NEUTRAL = 0.12; // |yaw - baseline| below this = centered
 const ACTION_TIMEOUT_MS = 8000; // per-action limit
 const SEQUENCE_LENGTH = 2; // gesture actions before the light test
 const GLOBAL_DEADLINE_MS = SEQUENCE_LENGTH * ACTION_TIMEOUT_MS + 8000; // >= sum of per-action budgets
@@ -38,6 +38,9 @@ const FLASH_STEP_MS = 200;
 const FLASH_THRESHOLD = 0.3; // min correlation to accept (tune on the kiosk)
 
 const DESCRIPTOR_SAMPLES = 5;
+// Overlay live EAR/MAR/yaw values during liveness to calibrate thresholds.
+// Set to false for production once tuned.
+const LIVENESS_DEBUG = true;
 // ---------------------------------------------------------------------------
 
 type Pt = { x: number; y: number };
@@ -50,8 +53,11 @@ const mid = (a: Pt, b: Pt): Pt => ({ x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 });
 const eyeAspectRatio = (eye: Pt[]) =>
   (dist(eye[1], eye[5]) + dist(eye[2], eye[4])) / (2 * dist(eye[0], eye[3]) || 1);
 
+// Inner-lip vertical gap over mouth width: ~0 when the mouth is shut, large when
+// open. (The OUTER lip points stay far apart even when closed, so they cannot
+// tell open from closed — that wrongly blocked the neutral/baseline check.)
 const mouthAspectRatio = (mouth: Pt[]) =>
-  dist(mouth[3], mouth[9]) / (dist(mouth[0], mouth[6]) || 1);
+  dist(mouth[14], mouth[18]) / (dist(mouth[0], mouth[6]) || 1);
 
 // Roll-invariant yaw: project (noseTip - eyeMid) onto the eye-line axis, so an
 // in-plane tilt of a flat photo does NOT register as a head turn.
@@ -139,6 +145,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
     dir: 1,
   });
   const [flashOn, setFlashOn] = useState(false);
+  const [dbg, setDbg] = useState({ ear: 0, mar: 0, yaw: 0 });
 
   const lv = useRef({
     seq: [] as Action[],
@@ -381,9 +388,10 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
       const ear = (eyeAspectRatio(leftEye) + eyeAspectRatio(rightEye)) / 2;
       const mar = mouthAspectRatio(mouth);
       const yaw = computeYaw(leftEye, rightEye, nose);
+      if (LIVENESS_DEBUG) setDbg({ ear, mar, yaw });
 
       if (!st.baseDone) {
-        const looksNeutral = ear > 0.2 && mar < MAR_CLOSED && Math.abs(yaw) < 0.18;
+        const looksNeutral = ear > 0.15 && mar < MAR_CLOSED && Math.abs(yaw) < 0.25;
         if (looksNeutral) {
           st.baseSamples.push({ ear, yaw });
           setStatus(`Hold still… (${st.baseSamples.length}/${BASELINE_FRAMES})`);
@@ -657,6 +665,12 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
             <AlertCircle className="w-5 h-5 mr-2 flex-shrink-0" />
             <span className="text-sm">{error}</span>
           </div>
+        )}
+
+        {phase === 'liveness' && LIVENESS_DEBUG && (
+          <p className="text-center text-[11px] font-mono text-gray-400 mb-2">
+            EAR {dbg.ear.toFixed(2)} · MAR {dbg.mar.toFixed(2)} · yaw {dbg.yaw.toFixed(2)}
+          </p>
         )}
 
         {phase === 'liveness' && (
