@@ -305,8 +305,41 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     }
   }, [sessionToken]);
 
+  // Close any open auth/verification modals and wipe the "Access Your Account"
+  // inputs + in-flight auth state, so an inactivity logout leaves nothing lingering
+  // (e.g. a modal on top of the promo video) and the next person starts fresh.
+  const clearVerificationState = useCallback(() => {
+    setShowFaceVerification(false);
+    setShowFingerprintVerification(false);
+    setShowAuthMethodSelection(false);
+    setShowOTPVerification(false);
+    setShowFaydaModal(false);
+    setShowFaydaPDFUpload(false);
+    setShowAccountSelection(false);
+    setShowPopup(false);
+    setShowEditForm(false);
+    setPendingAccountData(null);
+    setSelectedAccountForAuth(null);
+    setOtpMaskedPhone('');
+    setAccountNumber('');
+    setPhoneNumber('');
+    setFullName('');
+    setFirstName('');
+    setSearchName('');
+    setSearchType('account');
+    setAccountResults([]);
+    setModalSearchQuery('');
+    setUniqueReference('');
+    setResponseData(null);
+    setFormData(null);
+    setError(null);
+    setSuccessMessage(null);
+    setErrorMessage(null);
+  }, []);
+
   const resetToWelcomeScreen = useCallback(() => {
     destroyServerSession(); // Destroy backend session first
+    clearVerificationState(); // wipe inputs + close any lingering modals
     setShowAd(false);
     setShowInput(false);
     setShowDashboard(false);
@@ -317,7 +350,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setAccountData(null);  // Clear account data to return to welcome screen
     setSessionToken(null); // Clear session token
     setLastActivity(Date.now());
-  }, [destroyServerSession]);
+  }, [destroyServerSession, clearVerificationState]);
 
   const handleActivity = useCallback(() => {
     if (showAd) {
@@ -411,12 +444,13 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       if (Date.now() - lastActivity > INACTIVITY_TIMEOUT && !showAd) {
         destroyServerSession(); // Destroy server session on inactivity
         setSessionToken(null);
+        clearVerificationState(); // close any open modal so it isn't left over the promo video
         setShowAd(true);
       }
     }, 1000);
 
     return () => clearInterval(checkInactivity);
-  }, [lastActivity, showAd, destroyServerSession]);
+  }, [lastActivity, showAd, destroyServerSession, clearVerificationState]);
 
   // Listen for messages from browser extension
   useEffect(() => {
