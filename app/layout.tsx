@@ -3,6 +3,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import Script from 'next/script'
 import { OpenCVProvider } from '@/components/OpenCVProvider'
+import DisableCopyPaste from '@/components/DisableCopyPaste'
 
 // import { initializeDatabase } from '@/lib/dbInitializer';
 
@@ -30,6 +31,7 @@ export default async function RootLayout({
         />
       </head>
       <body className={inter.className}>
+        <DisableCopyPaste />
         <OpenCVProvider>
           {children}
         </OpenCVProvider>
