@@ -2,17 +2,12 @@
 
 import React, { useEffect, useRef, useState } from 'react';
 import {
-  logEvent,
+  track,
   exportLogsJson,
   exportLogsCsv,
   clearLogs,
   countLogs,
 } from '@/utils/interactionLogger';
-
-// Per-visit session id (stable for the tab's lifetime).
-const SESSION_ID = Math.random().toString(36).slice(2, 10) + '-' + Date.now().toString(36);
-
-const path = () => (typeof location !== 'undefined' ? location.pathname + location.hash : '');
 
 // A short, safe label for the interacted element — never an input's value.
 const labelFor = (el: Element | null): string => {
@@ -50,36 +45,18 @@ export default function InteractionLogger() {
   const pressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
-    logEvent({
-      ts: new Date().toISOString(),
-      session: SESSION_ID,
-      type: 'session_start',
-      label: (navigator.userAgent || '').slice(0, 80),
-      path: path(),
-    });
+    track('session_start', (navigator.userAgent || '').slice(0, 80));
 
     const skip = (target: EventTarget | null) =>
       !!(target as Element)?.closest?.('[data-nolog]');
 
     const onClick = (e: MouseEvent) => {
       if (skip(e.target)) return; // don't log the admin panel itself
-      logEvent({
-        ts: new Date().toISOString(),
-        session: SESSION_ID,
-        type: 'click',
-        label: labelFor(e.target as Element),
-        path: path(),
-      });
+      track('click', labelFor(e.target as Element));
     };
     const onSubmit = (e: Event) => {
       if (skip(e.target)) return;
-      logEvent({
-        ts: new Date().toISOString(),
-        session: SESSION_ID,
-        type: 'submit',
-        label: labelFor(e.target as Element),
-        path: path(),
-      });
+      track('submit', labelFor(e.target as Element));
     };
 
     document.addEventListener('click', onClick, true);

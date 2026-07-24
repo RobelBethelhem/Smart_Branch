@@ -5,6 +5,7 @@ import { motion } from 'framer-motion';
 import * as faceapi from 'face-api.js';
 import { X, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
 import { loadAntiSpoofModel, scoreLiveness } from '@/utils/antiSpoof';
+import { track } from '@/utils/interactionLogger';
 
 interface FaceVerificationModalProps {
   onClose: () => void;
@@ -261,6 +262,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
       );
       if (ANTISPOOF_ENFORCE && liveProb !== null && liveProb < ANTISPOOF_THRESHOLD) {
         cleanup();
+        track('face_verify_fail', `liveness · p=${liveProb.toFixed(2)}`);
         setError('Liveness check failed — please present a live face (photos and videos are rejected).');
         setPhase('error');
         return;
@@ -268,6 +270,7 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
 
       if (best === Infinity) {
         cleanup();
+        track('face_verify_fail', 'unreadable');
         setError('Could not read your face clearly. Please try again in good lighting.');
         setPhase('error');
         return;
@@ -278,12 +281,14 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         onSuccess();
       } else {
         cleanup();
+        track('face_verify_fail', `no match · d=${best.toFixed(2)}`);
         setError('Face does not match the photo on file. Please try again.');
         setPhase('error');
       }
     } catch {
       if (!mountedRef.current) return;
       cleanup();
+      track('face_verify_fail', 'error');
       setError('Verification failed. Please try again.');
       setPhase('error');
     }

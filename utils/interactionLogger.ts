@@ -1,19 +1,36 @@
-// On-device interaction logging (IndexedDB) with export to the tablet's Downloads.
+// On-device interaction logging (IndexedDB) + best-effort streaming to a backend
+// audit endpoint (/api/log). Both destinations get the SAME entries:
+//   - IndexedDB: durable local copy on the tablet, used for the export-to-Downloads.
+//   - Backend:   central audit log that survives a lost / wiped tablet.
 //
-// Records only interaction TYPE + element LABEL + timestamp — never the values
-// typed into inputs — so account numbers, OTPs and PINs are never stored.
+// Only interaction TYPE + a short element/event LABEL + timestamp are recorded —
+// never the values typed into inputs — so account numbers, OTPs and PINs are
+// never stored anywhere.
 
 const DB_NAME = 'zsmart_logs';
 const STORE = 'interactions';
-const MAX_LOGS = 50000; // cap so storage can't grow unbounded
+const MAX_LOGS = 50000; // local cap so storage can't grow unbounded
 
 export type LogEntry = {
   ts: string; // ISO timestamp
   session: string; // per-visit id
-  type: string; // 'session_start' | 'click' | 'submit' | ...
-  label: string; // element label / description (no input values)
+  type: string; // 'session_start' | 'click' | 'submit' | 'login_success' | ...
+  label: string; // element label / event detail (no input values)
   path: string; // location.pathname + hash
 };
+
+// Stable per-visit id (regenerated each time the tab loads in the browser).
+export const SESSION_ID: string =
+  typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2) + Date.now().toString(36);
+
+const pathOf = () =>
+  typeof location !== 'undefined' ? location.pathname + location.hash : '';
+
+// ---------------------------------------------------------------------------
+// IndexedDB (durable local copy + export source)
+// ---------------------------------------------------------------------------
 
 let dbPromise: Promise<IDBDatabase | null> | null = null;
 let writeCount = 0;
@@ -71,6 +88,103 @@ export const logEvent = async (entry: LogEntry): Promise<void> => {
     /* ignore */
   }
 };
+
+// ---------------------------------------------------------------------------
+// Backend streaming (Option A: central server audit log)
+// ---------------------------------------------------------------------------
+
+const ENDPOINT = '/api/log';
+let queue: LogEntry[] = [];
+let timer: ReturnType<typeof setTimeout> | null = null;
+let unloadHooked = false;
+
+const flush = async () => {
+  if (timer) {
+    clearTimeout(timer);
+    timer = null;
+  }
+  if (typeof fetch === 'undefined' || queue.length === 0) return;
+  const batch = queue;
+  queue = [];
+  try {
+    const res = await fetch(ENDPOINT, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ entries: batch }),
+      keepalive: true,
+    });
+    if (!res.ok) throw new Error('bad status');
+  } catch {
+    // couldn't reach the server — keep for retry (bounded so memory can't grow)
+    queue = batch.concat(queue).slice(-1000);
+    scheduleFlush();
+  }
+};
+
+const scheduleFlush = () => {
+  if (timer) return;
+  timer = setTimeout(() => {
+    timer = null;
+    flush();
+  }, 4000);
+};
+
+const sendBeaconNow = () => {
+  if (queue.length === 0) return;
+  try {
+    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      const blob = new Blob([JSON.stringify({ entries: queue })], {
+        type: 'application/json',
+      });
+      if (navigator.sendBeacon(ENDPOINT, blob)) queue = [];
+    }
+  } catch {
+    /* ignore */
+  }
+};
+
+const hookUnload = () => {
+  if (unloadHooked || typeof window === 'undefined') return;
+  unloadHooked = true;
+  window.addEventListener('pagehide', sendBeaconNow);
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden') {
+      flush();
+      sendBeaconNow();
+    }
+  });
+};
+
+const enqueueRemote = (entry: LogEntry) => {
+  queue.push(entry);
+  hookUnload();
+  if (queue.length >= 10) flush();
+  else scheduleFlush();
+};
+
+// ---------------------------------------------------------------------------
+// Public API
+// ---------------------------------------------------------------------------
+
+/**
+ * Record one interaction to BOTH the local IndexedDB (for on-tablet export)
+ * and the backend audit endpoint. Pass a short, non-sensitive label only.
+ */
+export const track = (type: string, label = ''): void => {
+  const entry: LogEntry = {
+    ts: new Date().toISOString(),
+    session: SESSION_ID,
+    type,
+    label: String(label || '').slice(0, 120),
+    path: pathOf(),
+  };
+  logEvent(entry);
+  enqueueRemote(entry);
+};
+
+// ---------------------------------------------------------------------------
+// Export / maintenance (used by the staff panel)
+// ---------------------------------------------------------------------------
 
 export const getAllLogs = async (): Promise<LogEntry[]> => {
   const db = await openDb();

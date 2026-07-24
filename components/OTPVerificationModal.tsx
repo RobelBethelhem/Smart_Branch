@@ -4,6 +4,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FiX, FiCheck, FiAlertCircle, FiLoader } from 'react-icons/fi';
 import { API_BASE_URL } from '@/config/environment';
+import { track } from '@/utils/interactionLogger';
 
 interface OTPVerificationModalProps {
   onClose: () => void;
@@ -120,6 +121,7 @@ const OTPVerificationModal: React.FC<OTPVerificationModalProps> = ({
       if (response.ok && !result.error && result.data?.sessionToken) {
         onSuccess(result.data.sessionToken);
       } else {
+        track('otp_fail', 'invalid code');
         setError(result.message || 'Invalid OTP. Please try again.');
         setOtp(['', '', '', '', '', '']);
         inputRefs.current[0]?.focus();

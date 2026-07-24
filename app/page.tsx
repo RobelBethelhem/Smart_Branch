@@ -39,6 +39,7 @@ import numberToWords from '@/utils/numberToWordConverter'
 import { API_BASE_URL } from '@/config/environment';
 import { decryptResponse } from '@/utils/responseDecryption';
 import { encryptPayload } from '@/utils/requestEncryption';
+import { track } from '@/utils/interactionLogger';
 
 
 
@@ -442,6 +443,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   useEffect(() => {
     const checkInactivity = setInterval(() => {
       if (Date.now() - lastActivity > INACTIVITY_TIMEOUT && !showAd) {
+        track('inactivity_logout');
         destroyServerSession(); // Destroy server session on inactivity
         setSessionToken(null);
         clearVerificationState(); // close any open modal so it isn't left over the promo video
@@ -653,6 +655,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     setShowAuthMethodSelection(false);
 
     if (!selectedAccountForAuth) return;
+    track('auth_method_selected', `${method} · ${selectedAccountForAuth.maskedAccountNumber || ''}`);
 
     if (method === 'face') {
       // Verify account and show face verification
@@ -717,7 +720,9 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         if (response.ok && !result.error && result.data) {
           setOtpMaskedPhone(result.data.maskedPhone || '');
           setShowOTPVerification(true);
+          track('otp_sent', selectedAccountForAuth.maskedAccountNumber || '');
         } else {
+          track('otp_send_fail', selectedAccountForAuth.maskedAccountNumber || '');
           setError(result.message || 'Failed to send OTP');
         }
       } catch (err) {
@@ -734,14 +739,17 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
   const handleFaceVerificationSuccess = () => {
     setShowFaceVerification(false);
+    track('face_verify_pass', selectedAccountForAuth?.maskedAccountNumber || '');
     if (pendingAccountData) {
       setAccountData(pendingAccountData);
       setShowDashboard(true);
+      track('login_success', `face · ${selectedAccountForAuth?.maskedAccountNumber || ''}`);
     }
   };
 
   const handleFaceVerificationClose = () => {
     setShowFaceVerification(false);
+    track('face_verify_cancel', selectedAccountForAuth?.maskedAccountNumber || '');
     setPendingAccountData(null);
   };
 
@@ -750,6 +758,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const handleOTPSuccess = async (serverSessionToken: string) => {
     setShowOTPVerification(false);
     if (!selectedAccountForAuth) return;
+    track('otp_verified', selectedAccountForAuth.maskedAccountNumber || '');
 
     setLoading(true);
     setError(null);
@@ -785,10 +794,12 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
             transactions: transactionsData
           });
           setShowDashboard(true);
+          track('login_success', `otp · ${selectedAccountForAuth.maskedAccountNumber || ''}`);
         } else {
           setError('Failed to fetch transactions');
         }
       } else {
+        track('login_fail', `otp · ${selectedAccountForAuth.maskedAccountNumber || ''}`);
         setError(result.message || 'Session validation failed');
       }
     } catch (err) {
@@ -856,7 +867,9 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         setAccountData(accountDataWithTransactions);
         setShowDashboard(true);
         setLastActivity(Date.now());
+        track('login_success', `fingerprint · ${selectedAccountForAuth?.maskedAccountNumber || ''}`);
       } else {
+        track('login_fail', `fingerprint · ${selectedAccountForAuth?.maskedAccountNumber || ''}`);
         setError(result.message || 'Failed to verify account');
       }
     } catch (err) {
@@ -1480,6 +1493,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   };
 
   const handleOptionClick = (option: string) => {
+    track('open', option);
     if (option === 'bank-floor-layout') {
       setShowBankFloorLayout(true);
     } else if (option === 'Products') {
@@ -2277,6 +2291,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.95 }}
       onClick={() => {
+        track('logout', 'manual');
         destroyServerSession(); // Destroy backend session first
         setShowDashboard(false);
         setAccountData(null);  // Clear account data on logout
