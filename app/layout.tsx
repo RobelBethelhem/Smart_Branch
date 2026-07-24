@@ -4,6 +4,7 @@ import { Inter } from 'next/font/google'
 import Script from 'next/script'
 import { OpenCVProvider } from '@/components/OpenCVProvider'
 import DisableCopyPaste from '@/components/DisableCopyPaste'
+import InteractionLogger from '@/components/InteractionLogger'
 
 // import { initializeDatabase } from '@/lib/dbInitializer';
 
@@ -32,6 +33,7 @@ export default async function RootLayout({
       </head>
       <body className={inter.className}>
         <DisableCopyPaste />
+        <InteractionLogger />
         <OpenCVProvider>
           {children}
         </OpenCVProvider>
