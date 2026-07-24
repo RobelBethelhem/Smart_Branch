@@ -7,6 +7,8 @@
 // never the values typed into inputs — so account numbers, OTPs and PINs are
 // never stored anywhere.
 
+import { API_BASE_URL } from '@/config/environment';
+
 const DB_NAME = 'zsmart_logs';
 const STORE = 'interactions';
 const MAX_LOGS = 50000; // local cap so storage can't grow unbounded
@@ -101,10 +103,18 @@ export const logEvent = async (entry: LogEntry): Promise<void> => {
 };
 
 // ---------------------------------------------------------------------------
-// Backend streaming (Option A: central server audit log)
+// Backend streaming (MongoDB audit log via the Express backend)
 // ---------------------------------------------------------------------------
+// Entries are batched to keep request volume low (the backend caps 100 req/min
+// per IP). Batches go to POST /api/interaction_logs, which saves them to Mongo
+// keyed by the tablet serial. keepalive:true lets in-flight batches finish even
+// as the page is being backgrounded / closed.
 
-const ENDPOINT = '/api/log';
+const ENDPOINT = `${API_BASE_URL}/api/interaction_logs`;
+const BATCH_SIZE = 25; // flush early once this many entries are queued
+const FLUSH_MS = 15000; // otherwise flush on this interval
+const MAX_QUEUE = 1000; // bound the in-memory retry backlog
+
 let queue: LogEntry[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
 let unloadHooked = false;
@@ -126,8 +136,9 @@ const flush = async () => {
     });
     if (!res.ok) throw new Error('bad status');
   } catch {
-    // couldn't reach the server — keep for retry (bounded so memory can't grow)
-    queue = batch.concat(queue).slice(-1000);
+    // couldn't reach the server — keep for retry (bounded so memory can't grow).
+    // The tablet's IndexedDB copy is never affected, so nothing is lost.
+    queue = batch.concat(queue).slice(-MAX_QUEUE);
     scheduleFlush();
   }
 };
@@ -137,39 +148,23 @@ const scheduleFlush = () => {
   timer = setTimeout(() => {
     timer = null;
     flush();
-  }, 4000);
-};
-
-const sendBeaconNow = () => {
-  if (queue.length === 0) return;
-  try {
-    if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
-      const blob = new Blob([JSON.stringify({ entries: queue })], {
-        type: 'application/json',
-      });
-      if (navigator.sendBeacon(ENDPOINT, blob)) queue = [];
-    }
-  } catch {
-    /* ignore */
-  }
+  }, FLUSH_MS);
 };
 
 const hookUnload = () => {
   if (unloadHooked || typeof window === 'undefined') return;
   unloadHooked = true;
-  window.addEventListener('pagehide', sendBeaconNow);
+  // keepalive fetch (in flush) is honoured across unload and works cross-origin.
+  window.addEventListener('pagehide', () => void flush());
   document.addEventListener('visibilitychange', () => {
-    if (document.visibilityState === 'hidden') {
-      flush();
-      sendBeaconNow();
-    }
+    if (document.visibilityState === 'hidden') void flush();
   });
 };
 
 const enqueueRemote = (entry: LogEntry) => {
   queue.push(entry);
   hookUnload();
-  if (queue.length >= 10) flush();
+  if (queue.length >= BATCH_SIZE) flush();
   else scheduleFlush();
 };
 
