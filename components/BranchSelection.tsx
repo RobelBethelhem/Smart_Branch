@@ -8,6 +8,8 @@ interface BranchSelectionProps {
 
 const BranchSelection: React.FC<BranchSelectionProps> = ({ onSelect }) => {
   const [branchCode, setBranchCode] = useState('');
+  // Tablet serial number — identifies WHICH device produced each audit entry.
+  const [tabletSerial, setTabletSerial] = useState('');
   const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
@@ -17,9 +19,14 @@ const BranchSelection: React.FC<BranchSelectionProps> = ({ onSelect }) => {
       setError('Branch code cannot be empty.');
       return;
     }
+    if (tabletSerial.trim() === '') {
+      setError('Tablet serial number cannot be empty.');
+      return;
+    }
     // You can add more validation as per your requirements
     // Save to localStorage
     localStorage.setItem('branchCode', branchCode.trim());
+    localStorage.setItem('tabletSerial', tabletSerial.trim());
     // Notify parent component
     onSelect(branchCode.trim());
   };
@@ -33,7 +40,7 @@ const BranchSelection: React.FC<BranchSelectionProps> = ({ onSelect }) => {
         onSubmit={handleSubmit}
         className="bg-white p-8 rounded-lg shadow-lg w-full max-w-md"
       >
-        <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center">Select Your Branch</h2>
+        <h2 className="text-3xl font-bold mb-6 text-gray-800 text-center">Set Up This Tablet</h2>
         <div className="mb-4">
           <label htmlFor="branchCode" className="block text-gray-700 font-semibold mb-2">
             Enter Branch Code
@@ -46,6 +53,22 @@ const BranchSelection: React.FC<BranchSelectionProps> = ({ onSelect }) => {
             className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
             placeholder="e.g., BR001"
           />
+        </div>
+        <div className="mb-4">
+          <label htmlFor="tabletSerial" className="block text-gray-700 font-semibold mb-2">
+            Enter Tablet Serial Number
+          </label>
+          <input
+            type="text"
+            id="tabletSerial"
+            value={tabletSerial}
+            onChange={(e) => setTabletSerial(e.target.value)}
+            className="w-full p-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            placeholder="e.g., R5CX90ABCDE"
+          />
+          <p className="text-xs text-gray-500 mt-1">
+            This uniquely identifies the tablet in the audit trail.
+          </p>
         </div>
         <button
           type="submit"

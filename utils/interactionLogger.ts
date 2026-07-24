@@ -14,9 +14,20 @@ const MAX_LOGS = 50000; // local cap so storage can't grow unbounded
 export type LogEntry = {
   ts: string; // ISO timestamp
   session: string; // per-visit id
+  serial: string; // tablet serial number (identifies the device) — the audit key
+  branch: string; // branch code
   type: string; // 'session_start' | 'click' | 'submit' | 'login_success' | ...
   label: string; // element label / event detail (no input values)
   path: string; // location.pathname + hash
+};
+
+// Per-tablet config set once on the branch/serial setup screen (localStorage).
+const readLS = (key: string): string => {
+  try {
+    return typeof localStorage !== 'undefined' ? localStorage.getItem(key) || '' : '';
+  } catch {
+    return '';
+  }
 };
 
 // Stable per-visit id (regenerated each time the tab loads in the browser).
@@ -174,6 +185,8 @@ export const track = (type: string, label = ''): void => {
   const entry: LogEntry = {
     ts: new Date().toISOString(),
     session: SESSION_ID,
+    serial: readLS('tabletSerial'),
+    branch: readLS('branchCode'),
     type,
     label: String(label || '').slice(0, 120),
     path: pathOf(),
@@ -252,7 +265,13 @@ const csvCell = (v: string) => `"${String(v ?? '').replace(/"/g, '""')}"`;
 
 export const exportLogsCsv = async (): Promise<number> => {
   const logs = await getAllLogs();
-  const rows = logs.map((l) => [l.ts, l.session, l.type, l.label, l.path].map(csvCell).join(','));
-  download(`zsmart-interactions-${stamp()}.csv`, 'text/csv', ['ts,session,type,label,path', ...rows].join('\n'));
+  const rows = logs.map((l) =>
+    [l.ts, l.serial, l.branch, l.session, l.type, l.label, l.path].map(csvCell).join(',')
+  );
+  download(
+    `zsmart-interactions-${stamp()}.csv`,
+    'text/csv',
+    ['ts,serial,branch,session,type,label,path', ...rows].join('\n')
+  );
   return logs.length;
 };
