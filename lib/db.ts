@@ -41,6 +41,22 @@ export function initializeOracleClient(): void {
 
 let poolInitialized = false;
 
+// Optional default schema. When the app connects as a user that is NOT the
+// Flexcube schema owner (e.g. a "smartbranch" user that was only granted SELECT
+// on the tables), set FLEXCUBE_SCHEMA so UNqualified table names resolve to the
+// owner's schema instead of the connected user's own (empty) schema. Sanitised
+// to a bare identifier because it is interpolated into ALTER SESSION (it can't
+// be a bind variable). Leave unset in test where you connect as the owner.
+const FLEXCUBE_SCHEMA = (process.env.FLEXCUBE_SCHEMA || '').replace(/[^A-Za-z0-9_$#]/g, '');
+
+// Runs once per newly-created pooled connection (not on every getConnection),
+// so setting the default schema costs nothing on the hot path.
+async function initSession(connection: oracledb.Connection, _requestedTag: string): Promise<void> {
+  if (FLEXCUBE_SCHEMA) {
+    await connection.execute(`ALTER SESSION SET CURRENT_SCHEMA = ${FLEXCUBE_SCHEMA}`);
+  }
+}
+
 async function initializePool() {
   if (!poolInitialized) {
     try {
@@ -57,7 +73,8 @@ async function initializePool() {
         poolIncrement: 1,
         poolMin: 1,
         poolMax: 4,
-        poolTimeout: 300
+        poolTimeout: 300,
+        sessionCallback: initSession
       });
 
       poolInitialized = true;
