@@ -26,10 +26,15 @@ export default async function RootLayout({
   return (
     <html lang="en">
       <head>
-        <Script 
-          src="https://docs.opencv.org/4.7.0/opencv.js" 
-          strategy="beforeInteractive"
-        />
+        {/*
+          OpenCV is loaded lazily and self-hosted (public/opencv.js) so it never
+          blocks first paint and needs no internet — critical on the locked-down
+          branch network. It only feeds OpenCVProvider's `isReady` flag; the
+          signature module does its actual work with the bundled
+          @techstark/opencv-js. `lazyOnload` = fetched after the page is idle, so
+          the page opens immediately even if OpenCV is slow/unavailable.
+        */}
+        <Script src="/opencv.js" strategy="lazyOnload" />
       </head>
       <body className={inter.className}>
         <DisableCopyPaste />
