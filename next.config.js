@@ -50,9 +50,13 @@ const nextConfig = {
   },
   // Updated from experimental.serverComponentsExternalPackages
   serverExternalPackages: ['oracledb'],
+  // Do not eagerly load every route (including database-backed API routes) at
+  // server startup. Those routes load on their first request instead.
+  experimental: {
+    preloadEntriesOnStart: false,
+  },
   env: {
     ORACLE_CLIENT_PATH: process.env.ORACLE_CLIENT_PATH,
-    RESPONSE_ENCRYPTION_KEY: process.env.RESPONSE_ENCRYPTION_KEY,
   }
 };
 

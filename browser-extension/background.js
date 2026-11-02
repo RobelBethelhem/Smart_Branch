@@ -6,7 +6,7 @@ console.log('Fayda Extension: Background script loaded');
 // ===========================================
 // To change for production, update these URLs:
 //   For localhost:  http://localhost:3000 / http://localhost:4000
-//   For production: http://10.1.1.181:3000 / http://10.1.1.181:4000
+//   For production: http://10.1.2.132:3000 / http://10.1.2.132:4000
 // Also update the "matches" in manifest.json content_scripts
 // ===========================================
 const SMART_BRANCH_URLS = [
