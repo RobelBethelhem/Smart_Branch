@@ -3,6 +3,7 @@ import oracledb, { Connection, ExecuteOptions, NUMBER, DATE, Result } from 'orac
 import { dbConfig } from '@/lib/dbConfig';
 import { executeQuery } from '@/lib/db';
 import { encryptResponse } from '@/lib/responseEncryption';
+import { forwardClientIp } from '@/lib/clientIp';
 const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://localhost:5000';
 
 interface TransactionRow {
@@ -210,11 +211,13 @@ export async function POST(request: NextRequest) {
     const openingDate = new Date(dateFrom.getTime());
     openingDate.setDate(openingDate.getDate() - 1);
 
-    const openingBalanceResult = await executeQuery(openingBalanceQuery, 
-      [accountNumber, dateFrom, accountNumber, dateFrom, accountNumber, dateFrom], 
+    // Started here, awaited together with the statement query below: the two do not depend on
+    // each other, so they run on two pool connections at the same time instead of back to back.
+    const openingBalancePromise = executeQuery(openingBalanceQuery,
+      [accountNumber, dateFrom, accountNumber, dateFrom, accountNumber, dateFrom],
       { outFormat: oracledb.OUT_FORMAT_OBJECT }
     );
-    
+
 
     const query = `
     select * from (
@@ -257,13 +260,14 @@ where value_dt>=to_date(trunc(:DateFrom))
     ];
 
 
+    const [openingBalanceResult, result] = await Promise.all([
+      openingBalancePromise,
+      executeQuery(query, bindParams, {
+        outFormat: oracledb.OUT_FORMAT_OBJECT
+      })
+    ]);
+
     const openingBalance = openingBalanceResult.data?.[0]?.CLOSE_BAL || 0;
-
-
-
-    const result = await executeQuery(query, bindParams, {
-      outFormat: oracledb.OUT_FORMAT_OBJECT
-    });
 
     if (!result.success) {
       throw new Error(result.error || 'Failed to fetch transactions');
@@ -320,7 +324,7 @@ export async function GET(request: Request) {
     try {
       const decryptTokenRes = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/decrypt-token`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', ...forwardClientIp(request) },
         body: JSON.stringify({ encryptedToken }),
       });
       const decryptResult = await decryptTokenRes.json();
@@ -344,6 +348,16 @@ export async function GET(request: Request) {
       success: false,
       message: 'Account number is required'
     }, { status: 400 });
+  }
+
+  // limit=0: the caller only needs the token check above, not the entries. The login screens
+  // call this on every sign-in and never use the rows; without this they pulled every column
+  // of every entry the account ever had from FlexCube, each time.
+  if (searchParams.get('limit') === '0') {
+    return NextResponse.json({
+      success: true,
+      encrypted: encryptResponse([])
+    });
   }
 
   try {

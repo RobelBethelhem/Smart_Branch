@@ -3,6 +3,7 @@ import { executeQuery } from "@/lib/db";
 import { AccountData } from "@/types/account";
 import oracledb from 'oracledb';
 import { encryptResponse } from '@/lib/responseEncryption';
+import { forwardClientIp } from '@/lib/clientIp';
 const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://localhost:5000';
 
 // Define the DatabaseRow interface
@@ -30,6 +31,10 @@ const SEARCH_RATE_WINDOW = 60 * 1000; // per minute
 
 function isRateLimited(ip: string): boolean {
   const now = Date.now();
+  // Drop finished windows now and then, so the map cannot grow for as long as the server runs.
+  if (searchRequests.size > 5000) {
+    searchRequests.forEach((value, key) => { if (now > value.resetTime) searchRequests.delete(key); });
+  }
   const entry = searchRequests.get(ip);
   if (!entry || now > entry.resetTime) {
     searchRequests.set(ip, { count: 1, resetTime: now + SEARCH_RATE_WINDOW });
@@ -50,6 +55,40 @@ function maskAccountNumber(accountNo: string): string {
   return accountNo.slice(0, 4) + '****' + accountNo.slice(-4);
 }
 
+// Account look-up by number. With images it is the original query. Without, the customer photo
+// and signature (large text columns) and their two joins are left out; every other column is
+// the same.
+function accountQuery(withImages: boolean): string {
+  return `
+        SELECT * FROM (
+          SELECT
+            CA.BRANCH_CODE,
+            CA.CUST_AC_NO AS CUST_AC_NO,
+            CA.AC_DESC AS ACC_DESC,
+            CA.AC_STAT_NO_DR AS NO_DEBIT,
+            CA.AC_STAT_NO_CR AS NO_CREDIT,
+            CA.AC_STAT_DORMANT AS DORMANT,
+            CA.CUST_NO,
+            CA.ACCOUNT_CLASS,
+            CA.CCY AS CCY,
+            AB.ACY_WITHDRAWABLE_BAL AS CURRENT_BALANCE,
+            AB.ACY_WITHDRAWABLE_BAL AS AVAILABLE_BALANCE,
+            AB.ACY_BLOCKED_AMT AS BLOCKED_AMOUNT${withImages ? `,
+            CI.IMAGE_TEXT AS PROFILE_IMAGE,
+            SI.SIG_TEXT AS SIGN_IMAGE` : ''}
+          FROM fcubsprd.STTM_CUST_ACCOUNT CA
+          JOIN fcubsprd.STTM_ACCOUNT_BALANCE AB ON CA.CUST_AC_NO = AB.CUST_AC_NO${withImages ? `
+          LEFT JOIN fcubsprd.STTM_CUST_IMAGE CI ON CA.CUST_NO = CI.CUSTOMER_NO
+          LEFT JOIN fcubsprd.svtm_cif_sig_det SI ON CA.CUST_NO = SI.CIF_ID` : ''}
+          WHERE CA.CUST_AC_NO = :1
+        ) WHERE ROWNUM = 1`;
+}
+
+const IMAGE_FETCH_INFO = {
+  PROFILE_IMAGE: { type: oracledb.STRING },
+  SIGN_IMAGE: { type: oracledb.STRING }
+};
+
 export async function POST(request: Request) {
   try {
     // Rate limiting
@@ -61,7 +100,11 @@ export async function POST(request: Request) {
       }, { status: 429 });
     }
 
-    const { accountNumber: rawAccountNumber, searchName, firstName, phoneNumber, encryptedToken } = await request.json();
+    const { accountNumber: rawAccountNumber, searchName, firstName, phoneNumber, encryptedToken, includeImages } = await request.json();
+    // Callers that only need the account name (first login step, beneficiary look-up) send
+    // includeImages:false, so the customer photo and signature are not read from FlexCube and
+    // shipped for nothing. Anything else gets them exactly as before.
+    const wantImages = includeImages !== false;
 
     // If encryptedToken provided, call Express backend to decrypt
     let accountNumber = rawAccountNumber;
@@ -69,7 +112,7 @@ export async function POST(request: Request) {
       try {
         const decryptTokenRes = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/decrypt-token`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...forwardClientIp(request) },
           body: JSON.stringify({ encryptedToken }),
         });
         const decryptResult = await decryptTokenRes.json();
@@ -101,30 +144,8 @@ export async function POST(request: Request) {
         }, { status: 400 });
       }
 
-      // Existing account number query
-      query = `
-        SELECT * FROM (
-          SELECT
-            CA.BRANCH_CODE,
-            CA.CUST_AC_NO AS CUST_AC_NO,
-            CA.AC_DESC AS ACC_DESC,
-            CA.AC_STAT_NO_DR AS NO_DEBIT,
-            CA.AC_STAT_NO_CR AS NO_CREDIT,
-            CA.AC_STAT_DORMANT AS DORMANT,
-            CA.CUST_NO,
-            CA.ACCOUNT_CLASS,
-            CA.CCY AS CCY,
-            AB.ACY_WITHDRAWABLE_BAL AS CURRENT_BALANCE,
-            AB.ACY_WITHDRAWABLE_BAL AS AVAILABLE_BALANCE,
-            AB.ACY_BLOCKED_AMT AS BLOCKED_AMOUNT,
-            CI.IMAGE_TEXT AS PROFILE_IMAGE,
-            SI.SIG_TEXT AS SIGN_IMAGE
-          FROM fcubsprd.STTM_CUST_ACCOUNT CA
-          JOIN fcubsprd.STTM_ACCOUNT_BALANCE AB ON CA.CUST_AC_NO = AB.CUST_AC_NO
-          LEFT JOIN fcubsprd.STTM_CUST_IMAGE CI ON CA.CUST_NO = CI.CUSTOMER_NO
-          LEFT JOIN fcubsprd.svtm_cif_sig_det SI ON CA.CUST_NO = SI.CIF_ID
-          WHERE CA.CUST_AC_NO = :1
-        ) WHERE ROWNUM = 1`;
+      // Account number query (with or without the photo / signature columns)
+      query = accountQuery(wantImages);
       params = [trimmedAccount];
     }
     else if (searchName) {
@@ -219,11 +240,8 @@ export async function POST(request: Request) {
 
     // Only include fetchInfo for account number queries that select PROFILE_IMAGE/SIGN_IMAGE
     const queryOptions: any = {};
-    if (accountNumber && !searchName && !(firstName && phoneNumber)) {
-      queryOptions.fetchInfo = {
-        PROFILE_IMAGE: { type: oracledb.STRING },
-        SIGN_IMAGE: { type: oracledb.STRING }
-      };
+    if (accountNumber && wantImages && !searchName && !(firstName && phoneNumber)) {
+      queryOptions.fetchInfo = IMAGE_FETCH_INFO;
     }
 
     const result = await executeQuery(
@@ -254,7 +272,7 @@ export async function POST(request: Request) {
         try {
           const encryptTokensRes = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/encrypt-tokens`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...forwardClientIp(request) },
             body: JSON.stringify({ accountNumbers }),
           });
           const encryptResult = await encryptTokensRes.json();
@@ -318,7 +336,7 @@ export async function POST(request: Request) {
       try {
         const encryptTokensRes = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/encrypt-tokens`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', ...forwardClientIp(request) },
           body: JSON.stringify({ accountNumbers: [accountData.CUST_AC_NO] }),
         });
         const encryptResult = await encryptTokensRes.json();
@@ -327,6 +345,18 @@ export async function POST(request: Request) {
         }
       } catch (tokenErr) {
         console.error('Account token encryption error (non-fatal):', tokenErr);
+      }
+
+      // The caller asked for no images, but without an account token the login screen falls
+      // back to direct face verification, which needs the photo. Fetch the images after all so
+      // that fallback works exactly as before.
+      if (!wantImages && !accountToken) {
+        const withImages = await executeQuery(accountQuery(true), params, { fetchInfo: IMAGE_FETCH_INFO });
+        const imageRow = withImages.success && withImages.data ? (withImages.data[0] as DatabaseRow | undefined) : undefined;
+        if (imageRow) {
+          accountData.PROFILE_IMAGE = imageRow.PROFILE_IMAGE ? `data:image/jpeg;base64,${imageRow.PROFILE_IMAGE}` : null;
+          accountData.SIGN_IMAGE = imageRow.SIGN_IMAGE;
+        }
       }
 
       try {

@@ -1,0 +1,25 @@
+# Secrets and local config — NEXT_PUBLIC_* come in as build args, the rest from the
+# container environment. (.env.local is tracked in git; it must never reach the image.)
+.env
+.env.*
+
+# Installed / built inside the image
+node_modules
+.next
+out
+*.tsbuildinfo
+next-env.d.ts
+
+# Not part of the web app: sample media, scratch folders, the Fayda browser extension
+# (installed in the staff browsers) and documentation
+video
+y
+browser-extension
+docs
+*.md
+
+.git
+.gitignore
+Dockerfile
+.dockerignore
+*.log

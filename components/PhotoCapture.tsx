@@ -167,13 +167,15 @@ interface PhotoCaptureProps {
 const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onNext, onPrev, formData, setFormData }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
   const [isCapturing, setIsCapturing] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(formData.photo || null);
 
   useEffect(() => {
     const loadModels = async () => {
-      await faceapi.loadSsdMobilenetv1Model('/models');
-      await faceapi.loadFaceLandmarkModel('/models');
+      // Load each model once per page (loading again re-downloads it and leaks the old copy).
+      if (!faceapi.nets.ssdMobilenetv1.isLoaded) await faceapi.loadSsdMobilenetv1Model('/models');
+      if (!faceapi.nets.faceLandmark68Net.isLoaded) await faceapi.loadFaceLandmarkModel('/models');
     };
     loadModels();
   }, []);
@@ -188,6 +190,7 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onNext, onPrev, formData, s
   const startVideo = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
       }
@@ -197,7 +200,10 @@ const PhotoCapture: React.FC<PhotoCaptureProps> = ({ onNext, onPrev, formData, s
   };
 
   const stopVideo = () => {
-    const stream = videoRef.current?.srcObject as MediaStream;
+    // The stream is kept in its own ref: when this runs on unmount the <video> element is
+    // already gone, so reading it from there found nothing and the camera stayed on.
+    const stream = streamRef.current ?? (videoRef.current?.srcObject as MediaStream | null);
+    streamRef.current = null;
     if (stream) {
       const tracks = stream.getTracks();
       tracks.forEach(track => track.stop());

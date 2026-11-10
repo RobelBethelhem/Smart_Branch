@@ -499,7 +499,10 @@ const MiniStatement: React.FC<MiniStatementProps> = ({
     if (accountNumber) {
       fetchTransactions();
     }
-  }, [accountNumber, selectedFilter, startDate, endDate, page, limit]);
+    // page / limit are not dependencies: the server returns the whole period and every row is
+    // shown, so a page click used to re-run both heavy FlexCube queries for the same data.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [accountNumber, selectedFilter, startDate, endDate]);
 
 
   // useEffect(() => {

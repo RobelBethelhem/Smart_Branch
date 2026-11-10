@@ -551,10 +551,12 @@ const FaceVerificationModal: React.FC<FaceVerificationModalProps> = ({
         return;
       }
 
+      // Load each model once per page. Loading again on every open re-downloaded the weights
+      // and left the previous copy in memory.
       await Promise.all([
-        faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
-        faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
-        faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
+        faceapi.nets.tinyFaceDetector.isLoaded ? null : faceapi.nets.tinyFaceDetector.loadFromUri('/models'),
+        faceapi.nets.faceLandmark68Net.isLoaded ? null : faceapi.nets.faceLandmark68Net.loadFromUri('/models'),
+        faceapi.nets.faceRecognitionNet.isLoaded ? null : faceapi.nets.faceRecognitionNet.loadFromUri('/models'),
       ]);
       if (!mountedRef.current) return;
       void loadAntiSpoofModel(); // preload the anti-spoof model (no-op if not deployed)

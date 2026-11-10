@@ -31,14 +31,17 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({ onNext, onPrev, for
   const [isVideoStarted, setIsVideoStarted] = useState(false);
   const [navigateToDashboard, setNavigateToDashboard] = useState(false);
   const [modelsLoaded, setModelsLoaded] = useState(false);
+  const streamRef = useRef<MediaStream | null>(null);
+  const detectingRef = useRef(false);
 
   useEffect(() => {
     const loadModels = async () => {
       try {
-        await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
-        await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
-        await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
-        await faceapi.nets.faceExpressionNet.loadFromUri('/models');
+        // Load each model once per page (loading again re-downloads it and leaks the old copy).
+        if (!faceapi.nets.ssdMobilenetv1.isLoaded) await faceapi.nets.ssdMobilenetv1.loadFromUri('/models');
+        if (!faceapi.nets.faceLandmark68Net.isLoaded) await faceapi.nets.faceLandmark68Net.loadFromUri('/models');
+        if (!faceapi.nets.faceRecognitionNet.isLoaded) await faceapi.nets.faceRecognitionNet.loadFromUri('/models');
+        if (!faceapi.nets.faceExpressionNet.isLoaded) await faceapi.nets.faceExpressionNet.loadFromUri('/models');
         setModelsLoaded(true);
       } catch (error) {
         console.error('Error loading models:', error);
@@ -59,6 +62,7 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({ onNext, onPrev, for
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { facingMode: "user" } 
       });
+      streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.onloadedmetadata = () => {
@@ -71,9 +75,12 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({ onNext, onPrev, for
   };
 
   const stopVideo = () => {
-    const stream = videoRef.current?.srcObject as MediaStream;
+    // The stream is kept in its own ref: when this runs on unmount the <video> element is
+    // already gone, so reading it from there found nothing and the camera stayed on.
+    const stream = streamRef.current ?? (videoRef.current?.srcObject as MediaStream | null);
     const tracks = stream?.getTracks();
     tracks?.forEach(track => track.stop());
+    streamRef.current = null;
     setIsVideoStarted(false);
   };
 
@@ -107,7 +114,17 @@ const FaceVerification: React.FC<FaceVerificationProps> = ({ onNext, onPrev, for
   useEffect(() => {
     let interval: NodeJS.Timeout;
     if (isVideoStarted) {
-      interval = setInterval(drawFaceLandmarks, 100);
+      // Skip a tick while the previous detection is still running; on a slow PC they piled up
+      // and froze the screen.
+      interval = setInterval(async () => {
+        if (detectingRef.current) return;
+        detectingRef.current = true;
+        try {
+          await drawFaceLandmarks();
+        } finally {
+          detectingRef.current = false;
+        }
+      }, 100);
     }
     return () => {
       if (interval) clearInterval(interval);

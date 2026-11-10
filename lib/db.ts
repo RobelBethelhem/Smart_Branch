@@ -57,33 +57,56 @@ async function initSession(connection: oracledb.Connection, _requestedTag: strin
   }
 }
 
+// Pool size. Fixed (min = max), as Oracle recommends: the pool used to shrink back to one
+// connection when idle, so each morning rush logged on again one connection at a time.
+// FLEXCUBE_POOL_MAX (default 20) sets the size; FLEXCUBE_POOL_MIN can lower the idle size if
+// the DBAs ask. Thick mode runs every call on a libuv thread, so UV_THREADPOOL_SIZE (set in
+// the Dockerfile) must stay above the pool size.
+const POOL_MAX = Math.max(1, parseInt(process.env.FLEXCUBE_POOL_MAX || '', 10) || 20);
+const POOL_MIN = Math.min(POOL_MAX, Math.max(0, parseInt(process.env.FLEXCUBE_POOL_MIN || '', 10) || POOL_MAX));
+
+// The pool is created once. Requests that arrive while it is still being created wait for the
+// same promise; before, each of them called createPool and all but the first failed with
+// "pool alias already exists" (NJS-046) right after a restart.
+let poolPromise: Promise<void> | null = null;
+
+async function createPoolOnce(): Promise<void> {
+  // Initialize Oracle client if not already initialized
+  if (!clientInitialized) {
+    initializeOracleClient();
+  }
+
+  // CLOB columns (customer photo / signature text) come back as strings.
+  oracledb.fetchAsString = [oracledb.CLOB];
+
+  await oracledb.createPool({
+    user: process.env.FLEXCUBE_DB_USER,
+    password: process.env.FLEXCUBE_DB_PASSWORD,
+    connectString: process.env.FLEXCUBE_DB_CONNECTION_STRING,
+    poolIncrement: POOL_MIN === POOL_MAX ? 0 : 1,
+    poolMin: POOL_MIN,
+    poolMax: POOL_MAX,
+    poolTimeout: 300,
+    // Wait for a free connection (up to a minute) instead of failing at once under load.
+    queueTimeout: 60000,
+    sessionCallback: initSession
+  });
+
+  poolInitialized = true;
+  console.log('Oracle connection pool initialized successfully');
+}
+
 async function initializePool() {
-  if (!poolInitialized) {
-    try {
-      // Initialize Oracle client if not already initialized
-      if (!clientInitialized) {
-        initializeOracleClient();
-      }
-
-      // Create connection pool
-      await oracledb.createPool({
-        user: process.env.FLEXCUBE_DB_USER,
-        password: process.env.FLEXCUBE_DB_PASSWORD,
-        connectString: process.env.FLEXCUBE_DB_CONNECTION_STRING,
-        poolIncrement: 1,
-        poolMin: 1,
-        poolMax: 4,
-        poolTimeout: 300,
-        sessionCallback: initSession
-      });
-
-      poolInitialized = true;
-      console.log('Oracle connection pool initialized successfully');
-    } catch (err) {
+  if (poolInitialized) return;
+  if (!poolPromise) {
+    poolPromise = createPoolOnce().catch((err) => {
+      // Let the next request try again (e.g. FlexCube was not reachable yet).
+      poolPromise = null;
       console.error('Error initializing connection pool:', err);
       throw err;
-    }
+    });
   }
+  await poolPromise;
 }
 
 export async function executeQuery(
@@ -133,6 +156,7 @@ export async function closePool() {
   try {
     await oracledb.getPool().close(10);
     poolInitialized = false;
+    poolPromise = null;
     console.log('Connection pool closed');
   } catch (err) {
     console.error('Error closing connection pool:', err);

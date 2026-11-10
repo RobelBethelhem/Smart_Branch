@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, DollarSign, RefreshCw } from 'lucide-react';
 import SignatureModal from './SignatureModal';
 import SuccessModal from './SuccessModal';
-import SignatureVerificationModal from './SignatureVerificationModal';
+// Loaded on demand: it bundles OpenCV, which must not sit in the first page load.
+import SignatureVerificationModal from './LazySignatureVerificationModal';
 
 const mockExchangeRates: Record<string, number> = {
   USD: 1,

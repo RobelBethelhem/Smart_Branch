@@ -1,7 +1,7 @@
 "use client"
 
 import { OpenCVProvider } from '@/components/OpenCVProvider';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { motion } from 'framer-motion';
 import { FiClock, FiCalendar, FiMapPin, FiUser, FiDollarSign, FiCreditCard, FiSend, FiGlobe, FiMessageCircle, FiDatabase, FiLock, FiPhone, FiLogOut, FiCheckSquare } from 'react-icons/fi';
 import WithdrawComponent from '../components/WithdrawComponent';
@@ -11,27 +11,18 @@ import ForeignExchangeComponent from '../components/ForeignExchangeComponent';
 import FeedbackMiniApp from '../components/FeedbackMiniApp';
 import OtherBankTransferComponent from '../components/OtherBankTransferComponent';
 import ECheckComponent from '../components/ECheckComponent';
-import BankFloorLayout from '../components/BankFloorLayout';
-import CustomerOnboarding from '../components/CustomerOnboarding';
-import * as faceapi from 'face-api.js';
 import BankProductsShowcase from '../components/BankProduct';
-import FlexcubeTest from '../components/FlexcubeTest';
 import ErrorMessage from '@/components/ErrorMessage';
 import Toast from '@/components/Toast';
 import LoadingSpinner from '@/components/LoadingSpinner';
 import { AccountData, UserData, Transaction } from '@/types/account';
 import UserDashboard from '@/components/UserDashboard';
-import FaceVerificationModal from '@/components/FaceVerificationModal';
 import FingerprintVerificationModal from '@/components/FingerprintVerificationModal';
 import AuthMethodSelectionModal from '@/components/AuthMethodSelectionModal';
 import OTPVerificationModal from '@/components/OTPVerificationModal';
-import MiniStatement from '@/components/MiniStatement';
-import FaydaDataModal from '@/components/FaydaDataModal';
-import FaydaPDFUpload from '@/components/FaydaPDFUpload';
 import Dashboard from '@/components/Dashboard';
 import SetATMPasswordComponent from '@/components/SetATMPasswordComponent';
 import { QrCode } from 'lucide-react';
-import GetMerchantQR from '@/components/GetMerchantQR';
 import dynamic from 'next/dynamic';
 import BranchSelection from '@/components/BranchSelection';
 import { AnimatePresence } from 'framer-motion';
@@ -40,6 +31,7 @@ import { API_BASE_URL } from '@/config/environment';
 import { decryptResponse } from '@/utils/responseDecryption';
 import { encryptPayload } from '@/utils/requestEncryption';
 import { track } from '@/utils/interactionLogger';
+import { preloadSignatureVerificationModal } from '@/components/LazySignatureVerificationModal';
 
 
 
@@ -62,6 +54,18 @@ interface Transactions {
 const TransactionMap = dynamic(() => import('../components/TransactionMap'), {
   ssr: false,
 });
+
+// Screens and dialogs that are only shown on demand are loaded on demand too. Imported
+// directly they (and face-api.js, which several of them bundle) were part of the first
+// download of every kiosk, although most sessions never open them.
+const BankFloorLayout = dynamic(() => import('../components/BankFloorLayout'), { ssr: false });
+const CustomerOnboarding = dynamic(() => import('../components/CustomerOnboarding'), { ssr: false });
+const FlexcubeTest = dynamic(() => import('../components/FlexcubeTest'), { ssr: false });
+const FaceVerificationModal = dynamic(() => import('@/components/FaceVerificationModal'), { ssr: false });
+const MiniStatement = dynamic(() => import('@/components/MiniStatement'), { ssr: false });
+const FaydaDataModal = dynamic(() => import('@/components/FaydaDataModal'), { ssr: false });
+const FaydaPDFUpload = dynamic(() => import('@/components/FaydaPDFUpload'), { ssr: false });
+const GetMerchantQR = dynamic(() => import('@/components/GetMerchantQR'), { ssr: false });
 
 const INACTIVITY_TIMEOUT = 100000;
 
@@ -164,7 +168,11 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
   const [showDashboard, setShowDashboard] = useState(false);
   const [showAd, setShowAd] = useState(false);
   const [selectedOption, setSelectedOption] = useState<string | null>(null);
-  const [lastActivity, setLastActivity] = useState(Date.now());
+  // Time of the last user input. A ref, not state: it changes on every mouse, key, touch and
+  // scroll event, and as state each of those re-rendered this whole page (and restarted the
+  // inactivity timer below). Nothing is drawn from it.
+  const lastActivityRef = useRef(Date.now());
+  const setLastActivity = useCallback((time: number) => { lastActivityRef.current = time; }, []);
   const [showBankFloorLayout, setShowBankFloorLayout] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showProductsShowcase, setShowProductsShowcase] = useState(false);
@@ -403,8 +411,16 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     };
   }, [handleActivity]);
 
-
-
+  // Warm up the two verification dialogs a few seconds after the page has loaded, so they
+  // open at once the first time a customer reaches them. They are no longer part of the first
+  // download (see the dynamic() list above); this fetches them in the background instead.
+  useEffect(() => {
+    const warmUp = setTimeout(() => {
+      preloadSignatureVerificationModal();
+      void import('@/components/FaceVerificationModal').catch(() => {});
+    }, 4000);
+    return () => clearTimeout(warmUp);
+  }, []);
 
 
   useEffect(() => {
@@ -442,7 +458,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
   useEffect(() => {
     const checkInactivity = setInterval(() => {
-      if (Date.now() - lastActivity > INACTIVITY_TIMEOUT && !showAd) {
+      if (Date.now() - lastActivityRef.current > INACTIVITY_TIMEOUT && !showAd) {
         track('inactivity_logout');
         destroyServerSession(); // Destroy server session on inactivity
         setSessionToken(null);
@@ -452,7 +468,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     }, 1000);
 
     return () => clearInterval(checkInactivity);
-  }, [lastActivity, showAd, destroyServerSession, clearVerificationState]);
+  }, [showAd, destroyServerSession, clearVerificationState]);
 
   // Listen for messages from browser extension
   useEffect(() => {
@@ -548,7 +564,11 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
           accountNumber: searchType === 'account' ? accountNumber : null,
           searchName: searchType === 'name' ? searchName : null,
           firstName: searchType === 'phone' ? firstName : null,
-          phoneNumber: searchType === 'phone' ? phoneNumber : null
+          phoneNumber: searchType === 'phone' ? phoneNumber : null,
+          // This step only shows the account name. The photo and signature are fetched by
+          // the verification step that follows (the server still sends them here if it
+          // cannot issue an account token, which is the one case this step needs them).
+          includeImages: false
         }),
       });
   
@@ -584,7 +604,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
             setShowAuthMethodSelection(true);
           } else {
             // Fallback: account token unavailable — verify by face directly.
-            const transactionsResponse = await fetch(`/api/transactions?accountNumber=${accountData.CUST_AC_NO}`);
+            const transactionsResponse = await fetch(`/api/transactions?accountNumber=${accountData.CUST_AC_NO}&limit=0`);
             const transactionsResult = await transactionsResponse.json();
 
             if (transactionsResponse.ok && transactionsResult.encrypted) {
@@ -673,7 +693,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
         if (result.success && result.encrypted) {
           const accountData = await decryptResponse(result.encrypted);
-          const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth.encryptedToken)}`);
+          const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth.encryptedToken)}&limit=0`);
           const transactionsResult = await transactionsResponse.json();
 
           if (transactionsResponse.ok && transactionsResult.encrypted) {
@@ -784,7 +804,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
         // Fetch transactions using the server-provided encrypted token
         const encryptedToken = selectedAccountForAuth.encryptedToken;
-        const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(encryptedToken)}`);
+        const transactionsResponse = await fetch(`/api/transactions?encryptedToken=${encodeURIComponent(encryptedToken)}&limit=0`);
         const transactionsResult = await transactionsResponse.json();
 
         if (transactionsResponse.ok && transactionsResult.encrypted) {
@@ -848,8 +868,8 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         // Fetch transactions for the account
         const transactionsResponse = await fetch(
           hasEncryptedToken
-            ? `/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth!.encryptedToken)}`
-            : `/api/transactions?accountNumber=${selectedAccountNumber}`
+            ? `/api/transactions?encryptedToken=${encodeURIComponent(selectedAccountForAuth!.encryptedToken)}&limit=0`
+            : `/api/transactions?accountNumber=${selectedAccountNumber}&limit=0`
         );
         const transactionsResult = await transactionsResponse.json();
 

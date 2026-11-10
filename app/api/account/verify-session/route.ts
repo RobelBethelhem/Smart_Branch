@@ -3,6 +3,7 @@ import { executeQuery } from "@/lib/db";
 import { AccountData } from "@/types/account";
 import oracledb from 'oracledb';
 import { encryptResponse } from '@/lib/responseEncryption';
+import { forwardClientIp } from '@/lib/clientIp';
 
 const BACKEND_URL = process.env.EXPRESS_BACKEND_URL || 'http://localhost:5000';
 
@@ -30,7 +31,7 @@ export async function POST(request: Request) {
     // Validate session with Express backend
     const sessionRes = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/validate-session`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...forwardClientIp(request) },
       body: JSON.stringify({ sessionToken, accountNumber }),
     });
 
@@ -48,7 +49,7 @@ export async function POST(request: Request) {
 
     const decryptRes = await fetch(`${BACKEND_URL}/api/zsmart_branch_requests/decrypt-token`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...forwardClientIp(request) },
       body: JSON.stringify({ encryptedToken }),
     });
 

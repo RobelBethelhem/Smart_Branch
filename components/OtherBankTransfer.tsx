@@ -1,7 +1,8 @@
 import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, DollarSign, User, Building, CreditCard } from 'lucide-react';
-import SignatureVerificationModal from "./SignatureVerificationModal";
+// Loaded on demand: it bundles OpenCV, which must not sit in the first page load.
+import SignatureVerificationModal from "./LazySignatureVerificationModal";
 import SignatureModal from "./SignatureModal";
 import base64 from 'base64-js';
 import SuccessModal from "./SuccessModal";

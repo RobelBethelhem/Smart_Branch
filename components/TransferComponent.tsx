@@ -3,7 +3,8 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowLeft, DollarSign, User, Building } from 'lucide-react';
 import SignatureModal from './SignatureModal';
 import SuccessModal from './SuccessModal';
-import SignatureVerificationModal from './SignatureVerificationModal';
+// Loaded on demand: it bundles OpenCV, which must not sit in the first page load.
+import SignatureVerificationModal from './LazySignatureVerificationModal';
 import BranchServiceModal from './BranchServiceModal';
 import Toast from './Toast';
 import { decryptResponse } from '@/utils/responseDecryption';
@@ -183,7 +184,8 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ accountNumber }),
+        // Only the beneficiary's name is shown: do not fetch their photo and signature.
+        body: JSON.stringify({ accountNumber, includeImages: false }),
       });
 
       const data = await response.json();
