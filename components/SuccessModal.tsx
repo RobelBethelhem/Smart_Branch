@@ -7,10 +7,14 @@ interface SuccessModalProps {
   onClose: () => void;
   type: 'withdrawal' | 'deposit' | 'transfer' | 'otherBankTransfer' | 'exchange';
   customerNumber?: string;
+  // The customer's place in the queue. When it is given, the screen shows it INSTEAD of a
+  // reference number: the request's unique code is sent to the customer's phone by SMS, and
+  // is not repeated on the tablet.
+  queueNumber?: string;
   assignedTo?: string;
 }
 
-const SuccessModal: React.FC<SuccessModalProps> = ({ amount, onClose, type, customerNumber, assignedTo }) => {
+const SuccessModal: React.FC<SuccessModalProps> = ({ amount, onClose, type, customerNumber, queueNumber, assignedTo }) => {
   console.log("ssigned to Tellerssigned to Teller", assignedTo)
   return (
     <motion.div
@@ -32,7 +36,16 @@ const SuccessModal: React.FC<SuccessModalProps> = ({ amount, onClose, type, cust
         </div>
         <h3 className="text-2xl font-bold mb-4">Transaction Successful!</h3>
         <p className="text-lg mb-2">Amount: ETB {amount}</p>
-        <p className="text-md mb-2">Reference Number: {customerNumber}</p>
+        {queueNumber !== undefined ? (
+          <>
+            <p className="text-md mb-2">Queue Number: {queueNumber || '—'}</p>
+            <p className="text-sm mb-2 text-gray-600">
+              Your unique code is sent to your registered phone number by SMS. It is valid only for today.
+            </p>
+          </>
+        ) : (
+          <p className="text-md mb-2">Reference Number: {customerNumber}</p>
+        )}
         
         {assignedTo && (
           <p className="text-md mb-2 text-blue-600">

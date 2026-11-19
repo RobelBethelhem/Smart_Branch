@@ -201,7 +201,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
 
       if (!result.error) {
         setShowBranchServiceModal(false);
-        setTransactionNumber(result.data.Customer_Unique_Number || uniqueNumber);
+        setTransactionNumber(result.data?.Queue_number || '');
         setAssignedTeller(result.data.assigned_to || '');
         setShowSuccessModal(true);
       } else {
@@ -257,7 +257,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
 
       if (!result.error) {
         setShowBranchServiceModal(false);
-        setTransactionNumber(result.data.Customer_Unique_Number || uniqueNumber);
+        setTransactionNumber(result.data?.Queue_number || '');
         setAssignedTeller(result.data.assigned_to || '');
         setShowSuccessModal(true);
       } else {
@@ -497,7 +497,7 @@ const OtherBankTransferComponent: React.FC<OtherBankTransferComponentProps> = ({
             amount={amount}
             onClose={handleSuccessClose}
             type="otherBankTransfer"
-            customerNumber={transactionNumber}
+            queueNumber={transactionNumber}
             assignedTo={assignedTeller}
           />
         )}

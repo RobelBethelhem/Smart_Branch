@@ -78,7 +78,6 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
   const [paymentNarrative, setPaymentNarrative] = useState('');
   const [amountInWords, setAmountInWords] = useState('');
   const [showBranchServiceModal, setShowBranchServiceModal] = useState(false);
-  const [referenceNumber, setReferenceNumber] = useState('');
   const [assignedTeller, setAssignedTeller] = useState<string>('');
 
   const validateAmount = () => {
@@ -158,7 +157,6 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
     try {
       setIsProcessing(true);
       const newReferenceNumber = generateReferenceNumber();
-      setReferenceNumber(newReferenceNumber);
 
       const withdrawData = {
         amount_in_figures: parseFloat(amount),
@@ -188,6 +186,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
       if (!result.error) {
         setShowBranchServiceModal(false);
         setAssignedTeller(result.data?.assigned_to || '');
+        setTransactionNumber(result.data?.Queue_number || ''); // shown on the success screen
         if (process.env.NODE_ENV === 'development') console.log('Assigned teller:', result.data?.assigned_to);
         setShowSuccessModal(true);
       } else {
@@ -206,7 +205,6 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
     try {
       setIsProcessing(true);
       const newReferenceNumber = generateReferenceNumber();
-      setReferenceNumber(newReferenceNumber);
 
       const withdrawData = {
         amount_in_figures: parseFloat(amount),
@@ -236,6 +234,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
       if (!result.error) {
         setShowBranchServiceModal(false);
         setAssignedTeller(result.data?.assigned_to || '');
+        setTransactionNumber(result.data?.Queue_number || ''); // shown on the success screen
         if (process.env.NODE_ENV === 'development') console.log('Assigned teller:', result.data?.assigned_to);
         setShowSuccessModal(true);
       } else {
@@ -396,7 +395,7 @@ const WithdrawComponent: React.FC<WithdrawComponentProps> = ({
             amount={amount}
             onClose={handleSuccessClose}
             type="withdrawal"
-            customerNumber={referenceNumber}
+            queueNumber={transactionNumber}
             assignedTo={assignedTeller}
           />
         )}

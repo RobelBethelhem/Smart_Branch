@@ -80,7 +80,6 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
   const [paymentNarrative, setPaymentNarrative] = useState('');
   const [amountInWords, setAmountInWords] = useState('');
   const [showBranchServiceModal, setShowBranchServiceModal] = useState(false);
-  const [referenceNumber, setReferenceNumber] = useState('');
   const [assignedTeller, setAssignedTeller] = useState<string>('');
 
   const validateAmount = () => {
@@ -178,7 +177,6 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
     try {
       setIsProcessing(true);
       const newReferenceNumber = generateReferenceNumber();
-      setReferenceNumber(newReferenceNumber);
 
       const eCheckData = {
         amount_in_figures: parseFloat(amount),
@@ -211,6 +209,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
         setShowBranchServiceModal(false);
         setAssignedTeller(result.data?.assigned_to || '');
         console.log('Assigned teller:', result.data?.assigned_to);
+        setTransactionNumber(result.data?.Queue_number || ''); // shown on the success screen
         setShowSuccessModal(true);
       } else {
         throw new Error(result.message);
@@ -228,7 +227,6 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
     try {
       setIsProcessing(true);
       const newReferenceNumber = generateReferenceNumber();
-      setReferenceNumber(newReferenceNumber);
 
       const eCheckData = {
         amount_in_figures: parseFloat(amount),
@@ -261,6 +259,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
         setShowBranchServiceModal(false);
         setAssignedTeller(result.data?.assigned_to || '');
         console.log('Assigned teller:', result.data?.assigned_to);
+        setTransactionNumber(result.data?.Queue_number || ''); // shown on the success screen
         setShowSuccessModal(true);
       } else {
         throw new Error(result.message);
@@ -471,7 +470,7 @@ const ECheckComponent: React.FC<ECheckComponentProps> = ({
             amount={amount}
             onClose={handleSuccessClose}
             type="otherBankTransfer"
-            customerNumber={referenceNumber}
+            queueNumber={transactionNumber}
             assignedTo={assignedTeller}
           />
         )}

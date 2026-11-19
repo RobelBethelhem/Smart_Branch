@@ -199,7 +199,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
 
       if (!result.error) {
         setShowBranchServiceModal(false);
-        setTransactionNumber(result.data.Queue_number || uniqueNumber);
+        setTransactionNumber(result.data?.Queue_number || '');
         setAssignedTeller(result.data.assigned_to || '');
         setShowSuccessModal(true);
       } else {
@@ -258,7 +258,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
 
       if (!result.error) {
         setShowBranchServiceModal(false);
-        setTransactionNumber(result.data.Queue_number || uniqueNumber);
+        setTransactionNumber(result.data?.Queue_number || '');
         setAssignedTeller(result.data.assigned_to || '');
         setShowSuccessModal(true);
       } else {
@@ -423,7 +423,7 @@ const DepositComponent: React.FC<DepositComponentProps> = ({ onBack, balance, st
             amount={amount}
             onClose={handleSuccessClose}
             type="deposit"
-            customerNumber={transactionNumber}
+            queueNumber={transactionNumber}
             assignedTo={assignedTeller}
           />
         )}

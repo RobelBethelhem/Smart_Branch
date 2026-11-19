@@ -316,7 +316,7 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
 
       if (!result.error) {
         setShowBranchServiceModal(false);
-        setTransactionNumber(result.data.Customer_Unique_Number || uniqueNumber);
+        setTransactionNumber(result.data?.Queue_number || '');
         setAssignedTeller(result.data.assigned_to || '');
         setShowSuccessModal(true);
       } else {
@@ -369,7 +369,7 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
 
       if (!result.error) {
         setShowBranchServiceModal(false);
-        setTransactionNumber(result.data.Customer_Unique_Number || uniqueNumber);
+        setTransactionNumber(result.data?.Queue_number || '');
         setAssignedTeller(result.data.assigned_to || '');
         setShowSuccessModal(true);
       } else {
@@ -604,7 +604,7 @@ const TransferComponent: React.FC<TransferComponentProps> = ({
             amount={amount}
             onClose={handleSuccessClose}
             type="transfer"
-            customerNumber={transactionNumber}
+            queueNumber={transactionNumber}
             assignedTo={assignedTeller}
           />
         )}

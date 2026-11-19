@@ -49,6 +49,9 @@ interface Transactions {
   payment_narration?: string;
   beneficiary_bank?: string;
   beneficiary_branch?: string;
+  // E-cheque: the person who collects the cash
+  recipient_full_name?: string;
+  recipient_phone_number?: string;
 }
 
 const TransactionMap = dynamic(() => import('../components/TransactionMap'), {
@@ -992,10 +995,24 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
 
 
+  // When the server refuses a change with a reason the customer can act on (HTTP 400: the
+  // amount is not valid, the request is already with a teller), that reason is shown.
+  // For anything else the general "please try again" text is kept.
+  const refusalReason = async (response: Response): Promise<string | null> => {
+    if (response.status !== 400) return null;
+    try {
+      const body = await response.json();
+      return typeof body?.message === 'string' && body.message ? body.message : null;
+    } catch {
+      return null;
+    }
+  };
+
   // Add new handlers for update and delete
   const handleUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+    let reason: string | null = null; // the server's reason, when it gave one the customer can act on
+
     try {
 
 
@@ -1009,7 +1026,9 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
         beneficiary_name: currentFormData.beneficiary_name,
         payment_narration: currentFormData.payment_narration,
         beneficiary_bank: currentFormData.beneficiary_bank,
-        beneficiary_branch: currentFormData.beneficiary_branch
+        beneficiary_branch: currentFormData.beneficiary_branch,
+        recipient_full_name: currentFormData.recipient_full_name,
+        recipient_phone_number: currentFormData.recipient_phone_number
     };
 
       const response = await fetch(`${API_BASE_URL}/api/zsmart_branch_requests/edit_smart_branch_request`, {
@@ -1021,6 +1040,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       });
 
       if (!response.ok) {
+        reason = await refusalReason(response);
         throw new Error('Update failed');
       }
 
@@ -1029,7 +1049,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       handleEditGoHome();
     } catch (error) {
       console.log('Error updating transaction:', error);
-      setErrorMessage('Failed to update request. Please try again.');
+      setErrorMessage(reason || 'Failed to update request. Please try again.');
     }
   };
 
@@ -1037,6 +1057,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     if (!window.confirm('Are you sure you want to cancel this request?')) {
       return;
     }
+    let reason: string | null = null; // the server's reason, when it gave one the customer can act on
 
     try {
       const deleteData = {
@@ -1053,6 +1074,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       });
 
       if (!response.ok) {
+        reason = await refusalReason(response);
         throw new Error('Delete failed');
       }
 
@@ -1061,7 +1083,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
       handleEditGoHome();
     } catch (error) {
       console.error('Error deleting transaction:', error);
-      setErrorMessage('Failed to cancel request. Please try again.');
+      setErrorMessage(reason || 'Failed to cancel request. Please try again.');
     }
   };
 
@@ -1096,7 +1118,7 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
     transition={{ duration: 2, delay: 0.8 }}
     className="inline-block"
   >
-    {transaction.request_type}
+    {transaction.request_type === 'ECheck' ? 'E-Cheque' : transaction.request_type}
   </motion.span>
 
   {/* Add a space between the two parts */}
@@ -1206,6 +1228,84 @@ const [showAccountSelection, setShowAccountSelection] = useState(false);
 
 
   
+        {/* E-cheque: like a withdrawal (the amount), plus the person who collects the cash. */}
+        {transaction.request_type === 'ECheck' && (
+          <>
+            <motion.div
+              initial={{ opacity: 0, x: -100 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="mb-6"
+            >
+              <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
+                Amount
+              </label>
+              <input
+                type="text"
+                id="amount"
+                name="amount_in_figures"
+                value={currentFormData.amount_in_figures}
+                onChange={(e) => handleInputChange(e, currentFormData)}
+                className="w-full p-3 border border-[#d9d9d9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
+              />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: 100 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.4 }}
+              className="mb-6"
+            >
+              <label htmlFor="amount_in_words" className="block text-sm font-medium text-gray-700 mb-2">
+                Amount in Words
+              </label>
+              <input
+                type="text"
+                id="amount_in_words"
+                value={currentFormData.amount_in_words}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md bg-gray-50 cursor-not-allowed"
+                disabled
+                placeholder="Amount in words will appear here"
+              />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: -100 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
+              className="mb-6"
+            >
+              <label htmlFor="recipient_full_name" className="block text-sm font-medium text-gray-700 mb-2">
+                Recipient Full Name
+              </label>
+              <input
+                type="text"
+                id="recipient_full_name"
+                name="recipient_full_name"
+                value={currentFormData.recipient_full_name || ''}
+                onChange={(e) => handleChange(e, currentFormData)}
+                className="w-full p-3 border border-[#d9d9d9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
+              />
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, x: -100 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.5, delay: 0.8 }}
+              className="mb-6"
+            >
+              <label htmlFor="recipient_phone_number" className="block text-sm font-medium text-gray-700 mb-2">
+                Recipient Phone Number
+              </label>
+              <input
+                type="tel"
+                id="recipient_phone_number"
+                name="recipient_phone_number"
+                value={currentFormData.recipient_phone_number || ''}
+                onChange={(e) => handleChange(e, currentFormData)}
+                className="w-full p-3 border border-[#d9d9d9] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#E60000]"
+              />
+            </motion.div>
+          </>
+        )}
+
         {transaction.request_type === 'Transfer' && (
           <>
             <motion.div
